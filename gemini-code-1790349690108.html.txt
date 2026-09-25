@@ -1,0 +1,3541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Trolley Tankers: Supermarket Mayhem</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bungee&family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+            background-color: #090d16;
+            margin: 0;
+            padding: 0;
+            width: 100vw;
+            height: 100vh;
+        }
+        .font-bungee {
+            font-family: 'Bungee', cursive, sans-serif;
+        }
+        canvas {
+            touch-action: none;
+        }
+        .custom-scroll::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        @keyframes pulseAlert {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.04); }
+        }
+        .pulse-alert {
+            animation: pulseAlert 1.6s infinite ease-in-out;
+        }
+    </style>
+</head>
+<body class="w-full h-full flex flex-col items-center justify-center bg-slate-950 text-slate-900 overflow-hidden">
+
+    <div id="game-wrapper" class="relative w-full h-full flex flex-col overflow-hidden">
+        
+        <!-- Streamlined Micro Top Bar -->
+        <header class="h-8 bg-white/95 backdrop-blur border-b border-slate-300 shadow-sm flex items-center justify-between px-2.5 z-20 shrink-0 text-xs">
+            <div class="flex items-center gap-1.5">
+                <span class="text-sm">🛒</span>
+                <span class="font-bungee text-slate-900 tracking-wide text-[11px]">TROLLEY TANKERS</span>
+                <span id="header-tier-badge" class="px-1.5 py-0.2 bg-amber-100 border border-amber-300 text-amber-800 rounded font-mono font-bold text-[9px]">BRONZE</span>
+            </div>
+
+            <!-- Intercom Live Feed -->
+            <div class="hidden sm:flex flex-1 max-w-xs md:max-w-md mx-2 overflow-hidden h-5 bg-slate-100 border border-slate-200 rounded px-2 items-center">
+                <span class="text-amber-600 mr-1 text-[10px]">📢</span>
+                <div id="pa-ticker" class="whitespace-nowrap text-slate-700 font-mono text-[10px] truncate font-medium">
+                    "ATTENTION: BIG PUSHERS ARE EASY TARGETS! FLANK ENEMY CARTS TO IMMOBILIZE THEM!"
+                </div>
+            </div>
+
+            <!-- Profile & Setting Micro Actions -->
+            <div class="flex items-center gap-1">
+                <button id="btn-open-multiplayer" class="px-2 py-0.5 rounded bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-300 text-[10px] font-mono font-bold flex items-center gap-1 shadow-xs transition">
+                    <span>🌐</span>
+                    <span id="header-room-code">Solo Play</span>
+                </button>
+                <button id="btn-open-account" class="px-2 py-0.5 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-[10px] font-mono font-bold flex items-center gap-1 shadow-xs transition">
+                    <span>💳</span>
+                    <span id="header-account-name" class="max-w-[75px] truncate">Guest</span>
+                    <span id="header-coupons" class="text-amber-600 ml-0.5">🎟️ 0</span>
+                </button>
+                <button id="btn-aim-mode" class="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 text-[10px] font-mono font-semibold transition" title="Toggle Direct / Slingshot Aim">
+                    🎯 <span id="aim-mode-text" class="hidden md:inline">Direct</span>
+                </button>
+                <button id="btn-audio" class="w-6 h-6 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 flex items-center justify-center text-[10px] transition">
+                    🔊
+                </button>
+                <button id="btn-menu" class="px-2 py-0.5 rounded bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[10px] font-mono uppercase tracking-wider shadow-xs transition">
+                    Menu
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Viewport Arena -->
+        <div id="canvas-container" class="relative flex-1 w-full h-full bg-slate-200 overflow-hidden">
+            <canvas id="gameCanvas" class="w-full h-full block cursor-crosshair"></canvas>
+
+            <!-- Store Alert Notification Banner -->
+            <div id="powerup-alert-banner" class="absolute top-2 left-1/2 -translate-x-1/2 bg-amber-500 text-slate-950 border-2 border-slate-950 px-3 py-1 rounded-full font-bungee text-xs shadow-xl backdrop-blur flex items-center gap-1.5 pointer-events-none transition-all duration-300 -translate-y-12 opacity-0 z-30">
+                <span class="text-base animate-bounce">📦</span>
+                <span id="alert-banner-text">NEW WEAPON RESTOCKED!</span>
+            </div>
+
+            <!-- Compact Micro Killfeed -->
+            <div id="killfeed-box" class="absolute top-2 right-2 flex flex-col gap-1 items-end pointer-events-none z-10 text-[10px] font-mono max-w-[220px]"></div>
+
+            <!-- Compact Micro Radar Minimap -->
+            <div class="absolute bottom-2 right-2 w-[105px] h-[75px] rounded-lg border border-slate-400 bg-white/95 backdrop-blur p-1 shadow-lg pointer-events-none hidden sm:flex flex-col z-10">
+                <div class="flex items-center justify-between px-0.5 pb-0.5 text-[7.5px] font-mono font-bold text-slate-600">
+                    <span class="text-amber-600">MAP</span>
+                    <span id="radar-zone-tag" class="text-emerald-700 truncate max-w-[60px]">Produce</span>
+                </div>
+                <canvas id="miniCanvas" class="w-full flex-1 rounded border border-slate-200 bg-slate-50"></canvas>
+            </div>
+
+            <!-- DUAL HEALTH HUD PILL: Cart HP + Shopper Pusher HP -->
+            <div id="player-hud-pill" class="absolute top-2 left-2 bg-white/95 backdrop-blur border border-slate-300 px-2 py-1.5 rounded-lg shadow-md flex flex-col gap-1 w-48 pointer-events-none z-10 text-[10px]">
+                <div class="flex items-center justify-between">
+                    <span id="hud-name" class="font-bold text-slate-800 truncate max-w-[90px]">Cart-01</span>
+                    <span id="hud-cash" class="font-mono font-black text-amber-600">$0.00</span>
+                </div>
+                
+                <!-- Cart Health Bar -->
+                <div class="space-y-0.5">
+                    <div class="flex justify-between text-[8px] font-mono font-bold text-slate-600">
+                        <span>🛒 CART CHASSIS</span>
+                        <span id="p1-cart-hp-num" class="text-emerald-700">100 HP</span>
+                    </div>
+                    <div class="w-full bg-slate-200 rounded-full h-2 p-0.2 border border-slate-300 relative overflow-hidden">
+                        <div id="p1-cart-hp-fill" class="bg-gradient-to-r from-emerald-500 to-green-400 h-full rounded-full transition-all duration-75" style="width: 100%;"></div>
+                    </div>
+                </div>
+
+                <!-- Pusher Human Health Bar -->
+                <div class="space-y-0.5">
+                    <div class="flex justify-between text-[8px] font-mono font-bold text-slate-600">
+                        <span>🏃 BIG PUSHER (TARGET)</span>
+                        <span id="p1-pusher-hp-num" class="text-blue-700">85 HP</span>
+                    </div>
+                    <div class="w-full bg-slate-200 rounded-full h-2 p-0.2 border border-slate-300 relative overflow-hidden">
+                        <div id="p1-pusher-hp-fill" class="bg-gradient-to-r from-blue-500 to-cyan-400 h-full rounded-full transition-all duration-75" style="width: 100%;"></div>
+                    </div>
+                    <div id="pusher-status-warning" class="hidden text-[8px] font-mono font-black text-rose-600 bg-rose-50 border border-rose-200 text-center rounded py-0.2 animate-pulse">
+                        ⚠️ PUSHER DOWN! IMMOBILIZED BUNKER!
+                    </div>
+                </div>
+
+                <!-- Weapon & Nitro -->
+                <div class="flex items-center justify-between text-[9px] font-mono text-slate-600 pt-0.5 border-t border-slate-200">
+                    <span id="p1-wpn-name" class="font-semibold truncate max-w-[110px]">💣 Standard</span>
+                    <span id="p1-ammo-num" class="font-bold text-amber-700">∞</span>
+                </div>
+
+                <!-- Nitro Fuel -->
+                <div class="w-full bg-slate-200 rounded-full h-1 border border-slate-300 overflow-hidden">
+                    <div id="p1-nitro-fill" class="bg-cyan-500 h-full rounded-full transition-all duration-75" style="width: 100%;"></div>
+                </div>
+            </div>
+
+            <!-- Visible On-Screen Joystick & Action Controls -->
+            <div id="touch-controls" class="absolute inset-0 pointer-events-none z-20">
+                <div id="touch-stick-zone" class="absolute bottom-6 left-6 w-32 h-32 rounded-full bg-slate-900/40 border-2 border-emerald-400/80 shadow-2xl backdrop-blur-md pointer-events-auto touch-none flex items-center justify-center cursor-grab active:cursor-grabbing">
+                    <div class="absolute inset-0 rounded-full border border-white/20 pointer-events-none"></div>
+                    <div id="touch-stick-knob" class="w-14 h-14 rounded-full bg-gradient-to-tr from-emerald-600 to-emerald-400 shadow-xl border-2 border-white/90 flex items-center justify-center text-white pointer-events-none transform transition-transform duration-75">
+                        <span class="opacity-80 text-xs">▲</span>
+                    </div>
+                </div>
+
+                <div class="absolute bottom-6 right-6 flex gap-3 pointer-events-auto touch-none items-end">
+                    <button id="btn-touch-boost" class="w-14 h-14 rounded-2xl bg-cyan-600 active:bg-cyan-500 text-white font-bold flex flex-col items-center justify-center shadow-lg border border-cyan-300 active:scale-95 transition-transform text-[9px]">
+                        ⚡ BOOST
+                    </button>
+                    <button id="btn-touch-shoot" class="w-16 h-16 rounded-2xl bg-amber-500 active:bg-amber-400 text-slate-950 font-bungee flex flex-col items-center justify-center shadow-xl border border-amber-300 active:scale-95 transition-transform text-[10px]">
+                        FIRE
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Multiplayer Connection Modal -->
+        <div id="multiplayer-modal" class="absolute inset-0 bg-slate-950/75 backdrop-blur-sm flex items-center justify-center z-50 p-3 hidden">
+            <div class="bg-white border-2 border-blue-600 rounded-2xl p-4 md:p-6 max-w-sm w-full shadow-2xl text-slate-900 flex flex-col gap-3 text-xs">
+                <div class="flex items-center justify-between border-b pb-2 border-slate-200">
+                    <div class="flex items-center gap-2">
+                        <span class="text-2xl">🌐</span>
+                        <div>
+                            <h2 class="font-bungee text-base md:text-lg text-slate-900 leading-tight">SUPERMARKET AISLE</h2>
+                            <p class="text-[10px] text-slate-500 font-mono">Peer-to-Peer Cart Battles</p>
+                        </div>
+                    </div>
+                    <button id="btn-close-multiplayer" class="text-slate-400 hover:text-slate-700 text-lg font-black px-2">✕</button>
+                </div>
+
+                <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
+                    <label class="font-mono font-bold text-[10px] text-slate-600 uppercase block">Your Aisle Room Code</label>
+                    <div class="flex gap-1.5">
+                        <input id="my-peer-id" type="text" readonly class="flex-1 bg-white border border-slate-300 rounded px-2 py-1 text-slate-800 font-mono font-bold text-xs select-all text-center">
+                        <button id="btn-copy-code" class="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded font-mono font-bold text-[10px]">Copy</button>
+                    </div>
+                </div>
+
+                <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
+                    <label class="font-mono font-bold text-[10px] text-slate-600 uppercase block">Join Friend's Aisle</label>
+                    <div class="flex gap-1.5">
+                        <input id="input-join-code" type="text" placeholder="Enter friend's code..." class="flex-1 bg-white border border-slate-300 rounded px-2 py-1 text-slate-800 font-mono font-bold text-xs">
+                        <button id="btn-connect-peer" class="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded font-mono font-bold text-[10px]">Join</button>
+                    </div>
+                </div>
+
+                <div class="text-[10px] font-mono text-slate-500 bg-amber-50 p-2 rounded border border-amber-200">
+                    💡 Share your code with your friend, or enter their code to join the same supermarket match live!
+                </div>
+            </div>
+        </div>
+
+        <!-- Shopper Account Profile Modal -->
+        <div id="account-modal" class="absolute inset-0 bg-slate-950/75 backdrop-blur-sm flex items-center justify-center z-50 p-3 hidden">
+            <div class="bg-white border-2 border-emerald-600 rounded-2xl p-4 md:p-6 max-w-lg w-full shadow-2xl text-slate-900 flex flex-col gap-3 max-h-[94vh] overflow-y-auto custom-scroll text-xs">
+                
+                <div class="flex items-center justify-between border-b pb-2 border-slate-200">
+                    <div class="flex items-center gap-2">
+                        <span class="text-2xl">💳</span>
+                        <div>
+                            <h2 class="font-bungee text-base md:text-lg text-slate-900 leading-tight">SHOPPER LOYALTY CARD</h2>
+                            <p class="text-[10px] text-slate-500 font-mono">Persistent Local Membership Profile</p>
+                        </div>
+                    </div>
+                    <button id="btn-close-account" class="text-slate-400 hover:text-slate-700 text-lg font-black px-2">✕</button>
+                </div>
+
+                <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200 flex flex-col gap-2">
+                    <div class="flex items-center justify-between">
+                        <span class="font-mono font-bold text-[11px] text-slate-700">SELECT OR CREATE PROFILE</span>
+                        <span id="acc-card-tier" class="px-2 py-0.5 rounded-full text-[9px] font-bold font-mono bg-amber-100 text-amber-800 border border-amber-300">BRONZE MEMBER</span>
+                    </div>
+
+                    <div class="flex gap-1.5">
+                        <select id="acc-profile-select" class="flex-1 bg-white border border-slate-300 rounded px-2 py-1 text-slate-800 font-bold focus:outline-none">
+                            <!-- Populated dynamically -->
+                        </select>
+                        <button id="btn-switch-account" class="px-2.5 py-1 bg-slate-200 hover:bg-slate-300 rounded font-mono font-bold text-[10px]">Switch</button>
+                    </div>
+
+                    <div class="flex gap-1.5 pt-1 border-t border-slate-200">
+                        <input id="new-account-name" type="text" maxlength="16" placeholder="New Shopper Name..." class="flex-1 bg-white border border-slate-300 rounded px-2 py-1 text-slate-800 font-bold focus:outline-none">
+                        <button id="btn-create-account" class="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded text-[10px] font-mono shadow-xs">+ Create</button>
+                    </div>
+                </div>
+
+                <!-- Career Lifetime Stats -->
+                <div class="grid grid-cols-3 gap-2 text-center font-mono">
+                    <div class="bg-slate-100 p-2 rounded-lg border border-slate-200">
+                        <div class="text-[9px] text-slate-500">CARTS DESTROYED</div>
+                        <div id="stat-life-kills" class="text-base font-black text-rose-600">0</div>
+                    </div>
+                    <div class="bg-slate-100 p-2 rounded-lg border border-slate-200">
+                        <div class="text-[9px] text-slate-500">MATCH VICTORIES</div>
+                        <div id="stat-life-wins" class="text-base font-black text-emerald-600">0</div>
+                    </div>
+                    <div class="bg-slate-100 p-2 rounded-lg border border-slate-200">
+                        <div class="text-[9px] text-slate-500">COUPONS EARNED</div>
+                        <div id="stat-life-coupons" class="text-base font-black text-amber-600">🎟️ 0</div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2 text-[10px] font-mono text-slate-600 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                    <div><span>Damage Dealt:</span> <strong id="stat-life-dmg" class="text-slate-900">0</strong></div>
+                    <div><span>Power-Ups Snatched:</span> <strong id="stat-life-pu" class="text-slate-900">0</strong></div>
+                    <div><span>Pushers Liquidated:</span> <strong id="stat-life-pushers" class="text-slate-900">0</strong></div>
+                    <div><span>Matches Played:</span> <strong id="stat-life-played" class="text-slate-900">0</strong></div>
+                </div>
+
+                <!-- Cart Paint Garage -->
+                <div class="space-y-1.5">
+                    <div class="flex items-center justify-between">
+                        <span class="font-bungee text-xs text-slate-800 tracking-wide">CART CUSTOMIZATION GARAGE</span>
+                        <span class="text-[10px] text-slate-500">Unlock with Coupons</span>
+                    </div>
+
+                    <div id="skins-grid" class="grid grid-cols-2 sm:grid-cols-3 gap-2"></div>
+                </div>
+
+                <button id="btn-save-close-account" class="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold font-mono tracking-wider shadow transition">
+                    SAVE & RETURN TO SUPERMARKET
+                </button>
+            </div>
+        </div>
+
+        <!-- Main Start & Options Modal -->
+        <div id="menu-modal" class="absolute inset-0 bg-slate-950/75 backdrop-blur-sm flex items-center justify-center z-50 p-3">
+            <div class="bg-white border-2 border-amber-500 rounded-2xl p-4 md:p-6 max-w-md w-full shadow-2xl text-center flex flex-col gap-3 max-h-[92vh] overflow-y-auto custom-scroll text-slate-900">
+                <div class="space-y-1">
+                    <div class="inline-block p-2 rounded-xl bg-amber-100 border border-amber-300 text-amber-600 text-2xl">
+                        🛒💥🏃
+                    </div>
+                    <h1 class="text-2xl font-bungee tracking-wide text-slate-900">
+                        TROLLEY TANKERS
+                    </h1>
+                    <p class="text-[11px] text-slate-500">Giant Pusher Target • Aisle Sweeper SMG • Dual Health Bars</p>
+                </div>
+
+                <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 text-left space-y-2 text-xs">
+                    <div class="flex items-center justify-between">
+                        <span class="font-semibold text-slate-700">Shopper Account:</span>
+                        <button id="btn-change-acc-menu" class="text-emerald-700 font-bold underline font-mono text-[11px]">
+                            <span id="menu-active-name">Coupon Commando</span> ✎
+                        </button>
+                    </div>
+
+                    <div class="flex items-center justify-between pt-1 border-t border-slate-200">
+                        <span class="text-slate-700 font-medium">Shopper Bots:</span>
+                        <span id="cfg-bots-label" class="font-mono text-amber-600 font-bold">6 Carts</span>
+                    </div>
+                    <input id="cfg-bots-slider" type="range" min="0" max="8" value="6" class="w-full accent-amber-500 cursor-pointer">
+
+                    <div class="flex items-center justify-between pt-1">
+                        <span class="text-slate-700 font-medium">Bot Difficulty:</span>
+                        <select id="cfg-difficulty" class="bg-white border border-slate-300 rounded px-2 py-0.5 text-slate-800 font-semibold focus:outline-none text-xs">
+                            <option value="easy">Casual Shopper</option>
+                            <option value="medium" selected>Coupon Commando</option>
+                            <option value="hard">Black Friday Veteran</option>
+                        </select>
+                    </div>
+
+                    <div class="flex items-center justify-between pt-1 border-t border-slate-200">
+                        <span class="text-slate-700 font-medium">Drag Aim Style:</span>
+                        <select id="cfg-aim-style" class="bg-white border border-slate-300 rounded px-2 py-0.5 text-slate-800 font-semibold focus:outline-none text-xs">
+                            <option value="direct" selected>Direct (Drag to Target)</option>
+                            <option value="slingshot">Slingshot (Pull Back to Blast)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Tactical Notice -->
+                <div class="bg-amber-50 p-2.5 rounded-xl border border-amber-200 text-left text-[10.5px] text-slate-700 space-y-1">
+                    <div class="font-bold text-amber-900 uppercase font-mono">⚠️ TACTICAL SHOPPING RULES</div>
+                    <p>• <strong>Giant Pusher:</strong> The human pusher behind the cart is now large and chunky with a big hitbox! Flank opponents to spray down their legs and back.</p>
+                    <p>• <strong>Aisle Sweeper SMG:</strong> Common high-rate-of-fire submachine gun spawns frequently! Spray continuous bullets (hold fire or drag) to shred exposed pushers.</p>
+                    <p>• <strong>Immobilization:</strong> If your pusher drops to 0 HP, your cart loses all wheels! You can still aim 360° and fire as a stationary bunker turret.</p>
+                </div>
+
+                <button id="btn-start" class="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-bungee text-sm shadow-md active:scale-95 transition-all">
+                    ENTER THE STORE
+                </button>
+            </div>
+        </div>
+
+        <!-- Match Result Modal -->
+        <div id="game-over-modal" class="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-3 hidden">
+            <div class="bg-white border-2 border-amber-500 rounded-2xl p-5 md:p-6 max-w-xs w-full text-center flex flex-col gap-3 shadow-2xl text-slate-900 text-xs">
+                <div id="game-over-icon" class="text-3xl">🏆</div>
+                <h2 id="game-over-title" class="text-xl font-bungee text-slate-900">CHECKOUT COMPLETE!</h2>
+                <p id="game-over-subtitle" class="text-[11px] text-slate-600 font-mono">Your shopping cart dominated the store aisles.</p>
+                
+                <div class="bg-slate-50 p-2.5 rounded-xl font-mono text-left space-y-1 border border-slate-200 text-[10px]">
+                    <div class="flex justify-between"><span>Carts Crushed:</span> <span id="stat-kills" class="text-rose-600 font-bold">0</span></div>
+                    <div class="flex justify-between"><span>Pushers Eliminated:</span> <span id="stat-pushers" class="text-blue-600 font-bold">0</span></div>
+                    <div class="flex justify-between"><span>Damage Dealt:</span> <span id="stat-dmg" class="text-emerald-600 font-bold">0</span></div>
+                    <div class="flex justify-between"><span>Power-Ups Claimed:</span> <span id="stat-pu" class="text-cyan-600 font-bold">0</span></div>
+                    <div class="flex justify-between pt-1 border-t border-slate-200"><span>Coupons Earned:</span> <span id="stat-earned-coupons" class="text-amber-600 font-black">+🎟️ 0</span></div>
+                </div>
+
+                <div class="flex gap-2">
+                    <button id="btn-restart" class="flex-1 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bungee text-xs rounded-xl shadow active:scale-95 transition">
+                        PLAY AGAIN
+                    </button>
+                    <button id="btn-post-account" class="px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 font-mono font-bold text-xs rounded-xl transition">
+                        💳 Card
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    class SoundManager {
+        constructor() {
+            this.ctx = null;
+            this.enabled = true;
+        }
+
+        init() {
+            if (!this.ctx) {
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                if (AudioCtx) this.ctx = new AudioCtx();
+            }
+            if (this.ctx && this.ctx.state === 'suspended') {
+                this.ctx.resume();
+            }
+        }
+
+        playShoot(type = 'normal') {
+            if (!this.enabled || !this.ctx) return;
+            const t = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+
+            if (type === 'smg') {
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(640 + (Math.random() - 0.5) * 80, t);
+                osc.frequency.exponentialRampToValueAtTime(140, t + 0.05);
+                gain.gain.setValueAtTime(0.18, t);
+                gain.gain.exponentialRampToValueAtTime(0.01, t + 0.05);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(t);
+                osc.stop(t + 0.06);
+                return;
+            } else if (type === 'watermelon') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(160, t);
+                osc.frequency.exponentialRampToValueAtTime(32, t + 0.35);
+                gain.gain.setValueAtTime(0.65, t);
+                gain.gain.exponentialRampToValueAtTime(0.01, t + 0.35);
+            } else if (type === 'chicken') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(540, t);
+                osc.frequency.exponentialRampToValueAtTime(180, t + 0.22);
+                gain.gain.setValueAtTime(0.4, t);
+                gain.gain.exponentialRampToValueAtTime(0.01, t + 0.22);
+            } else if (type === 'seltzer') {
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(950, t);
+                osc.frequency.exponentialRampToValueAtTime(420, t + 0.08);
+                gain.gain.setValueAtTime(0.25, t);
+                gain.gain.exponentialRampToValueAtTime(0.01, t + 0.08);
+            } else if (type === 'tomato') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(380, t);
+                osc.frequency.exponentialRampToValueAtTime(60, t + 0.24);
+                gain.gain.setValueAtTime(0.55, t);
+                gain.gain.exponentialRampToValueAtTime(0.01, t + 0.24);
+            } else if (type === 'jalapeno') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(220, t);
+                osc.frequency.linearRampToValueAtTime(90, t + 0.18);
+                gain.gain.setValueAtTime(0.35, t);
+                gain.gain.exponentialRampToValueAtTime(0.01, t + 0.18);
+            } else if (type === 'baguette') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(700, t);
+                osc.frequency.exponentialRampToValueAtTime(80, t + 0.15);
+                gain.gain.setValueAtTime(0.4, t);
+                gain.gain.exponentialRampToValueAtTime(0.01, t + 0.15);
+            } else {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(240, t);
+                osc.frequency.exponentialRampToValueAtTime(45, t + 0.16);
+                gain.gain.setValueAtTime(0.4, t);
+                gain.gain.exponentialRampToValueAtTime(0.01, t + 0.16);
+            }
+
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(t);
+            osc.stop(t + 0.38);
+        }
+
+        playExplosion(isBig = false) {
+            if (!this.enabled || !this.ctx) return;
+            const t = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(isBig ? 90 : 130, t);
+            osc.frequency.exponentialRampToValueAtTime(20, t + (isBig ? 0.55 : 0.3));
+            gain.gain.setValueAtTime(isBig ? 0.75 : 0.45, t);
+            gain.gain.exponentialRampToValueAtTime(0.01, t + (isBig ? 0.55 : 0.3));
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(t);
+            osc.stop(t + (isBig ? 0.55 : 0.3));
+        }
+
+        playPusherScream() {
+            if (!this.enabled || !this.ctx) return;
+            const t = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(580, t);
+            osc.frequency.exponentialRampToValueAtTime(140, t + 0.32);
+            gain.gain.setValueAtTime(0.35, t);
+            gain.gain.exponentialRampToValueAtTime(0.01, t + 0.32);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(t);
+            osc.stop(t + 0.33);
+        }
+
+        playHit() {
+            if (!this.enabled || !this.ctx) return;
+            const t = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(320, t);
+            osc.frequency.exponentialRampToValueAtTime(95, t + 0.06);
+            gain.gain.setValueAtTime(0.2, t);
+            gain.gain.exponentialRampToValueAtTime(0.01, t + 0.06);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(t);
+            osc.stop(t + 0.06);
+        }
+
+        playRegisterChime() {
+            if (!this.enabled || !this.ctx) return;
+            const t = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(1480, t);
+            osc.frequency.setValueAtTime(2220, t + 0.07);
+            gain.gain.setValueAtTime(0.28, t);
+            gain.gain.exponentialRampToValueAtTime(0.01, t + 0.32);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(t);
+            osc.stop(t + 0.32);
+        }
+
+        playSqueak() {
+            if (!this.enabled || !this.ctx || Math.random() > 0.08) return;
+            const t = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(2200 + Math.random() * 800, t);
+            osc.frequency.exponentialRampToValueAtTime(1400, t + 0.04);
+            gain.gain.setValueAtTime(0.03, t);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.04);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(t);
+            osc.stop(t + 0.04);
+        }
+    }
+
+    const sound = new SoundManager();
+
+    const WEAPONS = {
+        normal: {
+            name: 'Standard Shell',
+            color: '#d97706',
+            damage: 22,
+            speed: 13,
+            radius: 4.5,
+            recoil: 3.2,
+            cooldown: 20,
+            splashRadius: 26,
+            ammo: Infinity
+        },
+        smg: {
+            name: 'Aisle Sweeper SMG',
+            color: '#f59e0b',
+            damage: 6.5,
+            speed: 19,
+            radius: 3.0,
+            recoil: 0.8,
+            cooldown: 4,
+            spread: 0.12,
+            splashRadius: 8,
+            ammo: 85,
+            isRapidFire: true
+        },
+        watermelon: {
+            name: 'Watermelon Mortar',
+            color: '#16a34a',
+            damage: 44,
+            speed: 7.2,
+            radius: 8.5,
+            recoil: 5.5,
+            cooldown: 42,
+            splashRadius: 86,
+            shrapnelCount: 4,
+            isBallisticMortar: true,
+            ammo: 5
+        },
+        chicken: {
+            name: 'Rotisserie Chicken Napalm',
+            color: '#ea580c',
+            damage: 48,
+            speed: 11,
+            radius: 7.5,
+            recoil: 4.8,
+            cooldown: 32,
+            splashRadius: 75,
+            leavesFirePuddle: true,
+            ammo: 5
+        },
+        seltzer: {
+            name: 'Pressurized Seltzer Gatling',
+            color: '#06b6d4',
+            damage: 15,
+            speed: 21,
+            radius: 3.8,
+            recoil: 1.4,
+            cooldown: 6,
+            splashRadius: 18,
+            knockback: 3.2,
+            ammo: 32
+        },
+        tomato: {
+            name: 'Canned Tomato Cannonade',
+            color: '#dc2626',
+            damage: 24,
+            speed: 16,
+            radius: 5.0,
+            recoil: 7.0,
+            cooldown: 36,
+            splashRadius: 30,
+            shotgunPellets: 5,
+            ricochets: 2,
+            ammo: 6
+        },
+        jalapeno: {
+            name: 'Mega Jalapeño Flame Belcher',
+            color: '#ef4444',
+            damage: 18,
+            speed: 10,
+            radius: 8.0,
+            recoil: 2.0,
+            cooldown: 5,
+            splashRadius: 45,
+            isFlameStream: true,
+            ammo: 40
+        },
+        baguette: {
+            name: 'Baguette AP Sniper',
+            color: '#ca8a04',
+            damage: 54,
+            speed: 24,
+            radius: 4.0,
+            recoil: 4.5,
+            cooldown: 18,
+            splashRadius: 18,
+            penetration: 3,
+            ammo: 8
+        },
+        cluster: {
+            name: 'Cereal Cluster Bomb',
+            color: '#f97316',
+            damage: 38,
+            speed: 10,
+            radius: 6.5,
+            recoil: 5.0,
+            cooldown: 35,
+            splashRadius: 60,
+            clusterCount: 4,
+            ammo: 5
+        }
+    };
+
+    const POWERUP_CATALOG = [
+        { type: 'smg', label: 'Aisle Sweeper SMG', icon: '🔫', color: '#f59e0b' },
+        { type: 'smg', label: 'Aisle Sweeper SMG', icon: '🔫', color: '#f59e0b' },
+        { type: 'watermelon', label: 'Watermelon Mortar', icon: '🍉', color: '#16a34a' },
+        { type: 'chicken', label: 'Rotisserie Chicken Napalm', icon: '🍗', color: '#ea580c' },
+        { type: 'seltzer', label: 'Pressurized Seltzer Gatling', icon: '🍾', color: '#06b6d4' },
+        { type: 'tomato', label: 'Canned Tomato Flak', icon: '🥫', color: '#dc2626' },
+        { type: 'jalapeno', label: 'Mega Jalapeño Flame Belcher', icon: '🌶️', color: '#ef4444' },
+        { type: 'baguette', label: 'Baguette AP Sniper', icon: '🥖', color: '#ca8a04' },
+        { type: 'cluster', label: 'Cereal Cluster Bomb', icon: '🥣', color: '#f97316' },
+        { type: 'turkey', label: 'Frozen Turkey Mine', icon: '🦃', color: '#0284c7' },
+        { type: 'shield', label: 'Kevlar Shopping Bag', icon: '🛍️', color: '#9333ea' },
+        { type: 'health', label: 'Organic Produce Recovery', icon: '🥬', color: '#16a34a' }
+    ];
+
+    const TROLLEY_SKINS = [
+        { id: 'standard', name: 'Wire Chrome', color: '#10b981', price: 0, desc: 'Factory standard supermarket zinc mesh.' },
+        { id: 'rusty', name: 'Discount Rust', color: '#b45309', price: 50, desc: 'Clearance bin cart that still rolls.' },
+        { id: 'emerald', name: 'Emerald Express', color: '#059669', price: 100, desc: 'VIP express lane organic green finish.' },
+        { id: 'cyber', name: 'Neon Cyber Cart', color: '#06b6d4', price: 175, desc: 'Glow-wire high-tech electronics division look.' },
+        { id: 'royal_gold', name: 'Gold Luxury Plated', color: '#d97706', price: 300, desc: 'Diamond Shopper 24k polished gold basket.' }
+    ];
+
+    const RANDOM_NAMES = [
+        'Coupon Commando', 'Baguette Blaster', 'Cart Crusher', 'Aisle Destroyer',
+        'Karen The Ruthless', 'Express Sweeper', 'Trolley Terminator', 'Bulk Buyer',
+        'Discount Dynamo', 'Barcode Bandit', 'Shelf Shatterer', 'Checkout Champion'
+    ];
+
+    class AccountManager {
+        constructor() {
+            this.storageKey = 'trolley_tankers_accounts_v4';
+            this.activeKey = 'trolley_tankers_active_user_v4';
+            this.accounts = this.loadAll();
+            this.activeAccount = this.loadActive();
+        }
+
+        loadAll() {
+            try {
+                const data = localStorage.getItem(this.storageKey);
+                if (data) return JSON.parse(data);
+            } catch (e) {}
+            return {
+                'Coupon Commando': {
+                    name: 'Coupon Commando',
+                    createdAt: Date.now(),
+                    coupons: 60,
+                    kills: 0,
+                    pushersKilled: 0,
+                    wins: 0,
+                    matchesPlayed: 0,
+                    damageDealt: 0,
+                    powerupsCollected: 0,
+                    selectedSkin: 'standard',
+                    unlockedSkins: ['standard']
+                }
+            };
+        }
+
+        saveAll() {
+            try {
+                localStorage.setItem(this.storageKey, JSON.stringify(this.accounts));
+                if (this.activeAccount) {
+                    localStorage.setItem(this.activeKey, this.activeAccount.name);
+                }
+            } catch (e) {}
+        }
+
+        loadActive() {
+            const savedName = localStorage.getItem(this.activeKey);
+            if (savedName && this.accounts[savedName]) {
+                return this.accounts[savedName];
+            }
+            const keys = Object.keys(this.accounts);
+            return keys.length > 0 ? this.accounts[keys[0]] : null;
+        }
+
+        setActive(name) {
+            if (this.accounts[name]) {
+                this.activeAccount = this.accounts[name];
+                this.saveAll();
+                this.updateUI();
+                return true;
+            }
+            return false;
+        }
+
+        createAccount(name) {
+            const cleanName = name.trim();
+            if (!cleanName || this.accounts[cleanName]) return false;
+            const newAcc = {
+                name: cleanName,
+                createdAt: Date.now(),
+                coupons: 35,
+                kills: 0,
+                pushersKilled: 0,
+                wins: 0,
+                matchesPlayed: 0,
+                damageDealt: 0,
+                powerupsCollected: 0,
+                selectedSkin: 'standard',
+                unlockedSkins: ['standard']
+            };
+            this.accounts[cleanName] = newAcc;
+            this.activeAccount = newAcc;
+            this.saveAll();
+            this.updateUI();
+            return true;
+        }
+
+        getTier(acc) {
+            const total = (acc.wins * 3) + acc.kills + (acc.pushersKilled * 0.5);
+            if (total >= 40) return { name: 'DIAMOND TYCOON', color: 'text-cyan-700 bg-cyan-100 border-cyan-300' };
+            if (total >= 20) return { name: 'GOLD BULK BUYER', color: 'text-amber-800 bg-amber-100 border-amber-300' };
+            if (total >= 8) return { name: 'SILVER SAVER', color: 'text-slate-800 bg-slate-200 border-slate-300' };
+            return { name: 'BRONZE SHOPPER', color: 'text-amber-900 bg-orange-100 border-orange-300' };
+        }
+
+        unlockSkin(skinId) {
+            const skin = TROLLEY_SKINS.find(s => s.id === skinId);
+            if (!skin || !this.activeAccount) return false;
+            if (this.activeAccount.unlockedSkins.includes(skinId)) {
+                this.activeAccount.selectedSkin = skinId;
+                this.saveAll();
+                this.updateUI();
+                return true;
+            }
+            if (this.activeAccount.coupons >= skin.price) {
+                this.activeAccount.coupons -= skin.price;
+                this.activeAccount.unlockedSkins.push(skinId);
+                this.activeAccount.selectedSkin = skinId;
+                this.saveAll();
+                this.updateUI();
+                sound.playRegisterChime();
+                return true;
+            }
+            return false;
+        }
+
+        recordMatch(kills, pushersKilled, damage, powerups, won) {
+            if (!this.activeAccount) return 0;
+            this.activeAccount.matchesPlayed++;
+            this.activeAccount.kills += kills;
+            this.activeAccount.pushersKilled = (this.activeAccount.pushersKilled || 0) + pushersKilled;
+            this.activeAccount.damageDealt += Math.round(damage);
+            this.activeAccount.powerupsCollected += powerups;
+            if (won) this.activeAccount.wins++;
+
+            const earnedCoupons = (kills * 12) + (pushersKilled * 6) + (won ? 30 : 8) + (powerups * 4);
+            this.activeAccount.coupons += earnedCoupons;
+            this.saveAll();
+            this.updateUI();
+            return earnedCoupons;
+        }
+
+        updateUI() {
+            if (!this.activeAccount) return;
+            const acc = this.activeAccount;
+            const tier = this.getTier(acc);
+
+            document.getElementById('header-account-name').innerText = acc.name;
+            document.getElementById('header-coupons').innerText = `🎟️ ${acc.coupons}`;
+            const headerTier = document.getElementById('header-tier-badge');
+            headerTier.innerText = tier.name.split(' ')[0];
+            headerTier.className = `px-1.5 py-0.2 rounded font-mono font-bold text-[9px] border ${tier.color}`;
+
+            document.getElementById('menu-active-name').innerText = acc.name;
+            document.getElementById('hud-name').innerText = acc.name;
+
+            const select = document.getElementById('acc-profile-select');
+            select.innerHTML = '';
+            for (let name in this.accounts) {
+                const opt = document.createElement('option');
+                opt.value = name;
+                opt.innerText = name;
+                if (name === acc.name) opt.selected = true;
+                select.appendChild(opt);
+            }
+
+            const tierBadge = document.getElementById('acc-card-tier');
+            tierBadge.innerText = tier.name;
+            tierBadge.className = `px-2 py-0.5 rounded-full text-[9px] font-bold font-mono border ${tier.color}`;
+
+            document.getElementById('stat-life-kills').innerText = acc.kills;
+            document.getElementById('stat-life-wins').innerText = acc.wins;
+            document.getElementById('stat-life-coupons').innerText = `🎟️ ${acc.coupons}`;
+            document.getElementById('stat-life-dmg').innerText = acc.damageDealt.toLocaleString();
+            document.getElementById('stat-life-pu').innerText = acc.powerupsCollected;
+            document.getElementById('stat-life-pushers').innerText = acc.pushersKilled || 0;
+            document.getElementById('stat-life-played').innerText = acc.matchesPlayed;
+
+            const skinsGrid = document.getElementById('skins-grid');
+            skinsGrid.innerHTML = '';
+            TROLLEY_SKINS.forEach(skin => {
+                const isUnlocked = acc.unlockedSkins.includes(skin.id);
+                const isSelected = acc.selectedSkin === skin.id;
+
+                const card = document.createElement('div');
+                card.className = `p-2 rounded-xl border flex flex-col justify-between gap-1 transition ${
+                    isSelected ? 'border-amber-500 bg-amber-50/70 shadow-xs' : 'border-slate-200 bg-white hover:bg-slate-50'
+                }`;
+
+                card.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <span class="font-bold text-[10.5px]" style="color:${skin.color}">🛒 ${skin.name}</span>
+                        ${isSelected ? '<span class="text-[9px] text-amber-700 font-black font-mono">ACTIVE</span>' : ''}
+                    </div>
+                    <p class="text-[9px] text-slate-500 line-clamp-2">${skin.desc}</p>
+                    <div class="flex items-center justify-between pt-1 border-t border-slate-100">
+                        <span class="text-[9.5px] font-mono font-bold text-slate-700">${isUnlocked ? 'Owned' : `🎟️ ${skin.price}`}</span>
+                        <button class="px-2 py-0.5 rounded font-mono font-bold text-[9.5px] transition ${
+                            isSelected 
+                                ? 'bg-slate-200 text-slate-500 cursor-default' 
+                                : isUnlocked 
+                                    ? 'bg-emerald-600 hover:bg-emerald-500 text-white' 
+                                    : (acc.coupons >= skin.price ? 'bg-amber-500 hover:bg-amber-400 text-slate-950' : 'bg-slate-200 text-slate-400 cursor-not-allowed')
+                        }">
+                            ${isSelected ? 'Equipped' : (isUnlocked ? 'Equip' : 'Unlock')}
+                        </button>
+                    </div>
+                `;
+
+                const btn = card.querySelector('button');
+                if (!isSelected) {
+                    btn.addEventListener('click', () => {
+                        accountMgr.unlockSkin(skin.id);
+                    });
+                }
+                skinsGrid.appendChild(card);
+            });
+        }
+    }
+
+    const accountMgr = new AccountManager();
+
+    // ==========================================
+    // MULTIPLAYER NETWORKING (PeerJS / WebRTC)
+    // ==========================================
+    let peer = null;
+    let connections = [];
+    let isMultiplayerActive = false;
+    let lastNetworkSync = 0;
+
+    function initMultiplayer() {
+        const randomCode = 'cart-' + Math.floor(1000 + Math.random() * 9000);
+        peer = new Peer(randomCode);
+
+        peer.on('open', (id) => {
+            const myPeerBox = document.getElementById('my-peer-id');
+            if (myPeerBox) myPeerBox.value = id;
+            const roomBadge = document.getElementById('header-room-code');
+            if (roomBadge) roomBadge.innerText = id;
+        });
+
+        peer.on('connection', (conn) => {
+            setupConnectionHandlers(conn);
+            postKillfeed(`🌐 Another shopper entered your aisle!`, 'text-blue-600 font-bold');
+        });
+
+        peer.on('error', (err) => {
+            console.error('PeerJS error:', err);
+        });
+    }
+
+    function connectToFriend(targetCode) {
+        if (!peer || !targetCode) return;
+        const conn = peer.connect(targetCode.trim());
+        setupConnectionHandlers(conn);
+        conn.on('open', () => {
+            postKillfeed(`🌐 Connected to Aisle: ${targetCode}!`, 'text-blue-600 font-bold');
+            const roomBadge = document.getElementById('header-room-code');
+            if (roomBadge) roomBadge.innerText = targetCode;
+        });
+    }
+
+    function setupConnectionHandlers(conn) {
+        conn.on('open', () => {
+            connections.push(conn);
+            isMultiplayerActive = true;
+            document.getElementById('multiplayer-modal').classList.add('hidden');
+            if (!isRunning) startBattle();
+        });
+
+        conn.on('data', (data) => {
+            handleNetworkMessage(data);
+        });
+
+        conn.on('close', () => {
+            connections = connections.filter(c => c !== conn);
+            if (connections.length === 0) {
+                isMultiplayerActive = false;
+            }
+        });
+    }
+
+    function broadcastNetMessage(msg) {
+        for (let conn of connections) {
+            if (conn.open) conn.send(msg);
+        }
+    }
+
+    function broadcastLocalState() {
+        const p1 = players.find(p => p.id === 'p1');
+        if (!p1 || connections.length === 0) return;
+
+        broadcastNetMessage({
+            type: 'player_sync',
+            id: peer.id,
+            name: p1.name,
+            x: p1.x,
+            y: p1.y,
+            vx: p1.vx,
+            vy: p1.vy,
+            heading: p1.heading,
+            turretAngle: p1.turretAngle,
+            cartHealth: p1.cartHealth,
+            pusherHealth: p1.pusherHealth,
+            isPusherDead: p1.isPusherDead,
+            isDead: p1.isDead,
+            color: p1.color,
+            skinId: p1.skinId,
+            weaponType: p1.weaponType,
+            ammo: p1.ammo
+        });
+    }
+
+    function handleNetworkMessage(data) {
+        if (data.type === 'player_sync') {
+            let remotePlayer = players.find(p => p.id === data.id);
+            if (!remotePlayer) {
+                remotePlayer = new TrolleyTank(data.id, data.x, data.y, data.color, false, data.name, data.skinId);
+                players.push(remotePlayer);
+                postKillfeed(`🛒 ${data.name} rolled into the battle!`, 'text-emerald-600 font-bold');
+            }
+            remotePlayer.x = data.x;
+            remotePlayer.y = data.y;
+            remotePlayer.vx = data.vx;
+            remotePlayer.vy = data.vy;
+            remotePlayer.heading = data.heading;
+            remotePlayer.turretAngle = data.turretAngle;
+            remotePlayer.cartHealth = data.cartHealth;
+            remotePlayer.pusherHealth = data.pusherHealth;
+            remotePlayer.isPusherDead = data.isPusherDead;
+            remotePlayer.isDead = data.isDead;
+            remotePlayer.weaponType = data.weaponType;
+            remotePlayer.ammo = data.ammo;
+        } else if (data.type === 'remote_fire') {
+            const wpn = WEAPONS[data.weaponType] || WEAPONS.normal;
+            bullets.push(new Bullet(data.id, data.muzzleX, data.muzzleY, data.angle, wpn, data.color, wpn.damage));
+            sound.playShoot(data.weaponType);
+        }
+    }
+
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const miniCanvas = document.getElementById('miniCanvas');
+    const miniCtx = miniCanvas.getContext('2d');
+
+    const WORLD_WIDTH = 3600;
+    const WORLD_HEIGHT = 2400;
+
+    let dpr = window.devicePixelRatio || 1;
+    let camera = { x: 0, y: 0, width: 800, height: 600 };
+
+    let isRunning = false;
+    let isPaused = false;
+    let botCount = 6;
+    let botDifficulty = 'medium';
+    let dragAimMode = 'direct';
+
+    let isMouseDown = false;
+    let isTouchFiring = false;
+
+    let players = [];
+    let bullets = [];
+    let particles = [];
+    let powerups = [];
+    let obstacles = [];
+    let circularObstacles = [];
+    let breakables = [];
+    let firePuddles = [];
+    let proximityMines = [];
+    let conveyorBelts = [];
+    let shellCasings = [];
+    let tireTracks = [];
+
+    const MAX_ACTIVE_POWERUPS = 5;
+    let powerupSpawnCooldown = 12;
+
+    const stats = {
+        kills: 0,
+        pushersKilled: 0,
+        damageDealt: 0,
+        powerupsCollected: 0
+    };
+
+    const keys = {};
+    const mouse = { x: 0, y: 0, worldX: 0, worldY: 0 };
+    const touchMove = { x: 0, y: 0, active: false };
+
+    const dragAim = {
+        active: false,
+        identifier: null,
+        startX: 0,
+        startY: 0,
+        currentX: 0,
+        currentY: 0,
+        worldCurrentX: 0,
+        worldCurrentY: 0,
+        aimAngle: 0,
+        aimDist: 0
+    };
+
+    const SUPERSTORE_ZONES = [
+        { id: 'produce', name: 'Fresh Produce Market', bounds: { x: 0, y: 0, w: 1200, h: 1200 }, bgColor: '#ffffff', tileColor1: '#ffffff', tileColor2: '#f8fafc', trimColor: '#10b981' },
+        { id: 'freezer', name: 'Frozen Food Walk-Ins', bounds: { x: 1200, y: 0, w: 1200, h: 1200 }, bgColor: '#ffffff', tileColor1: '#ffffff', tileColor2: '#f0f9ff', trimColor: '#0284c7', slippery: true },
+        { id: 'bakery', name: 'Bakery & Artisan Deli', bounds: { x: 2400, y: 0, w: 1200, h: 1200 }, bgColor: '#ffffff', tileColor1: '#ffffff', tileColor2: '#fffbeb', trimColor: '#d97706' },
+        { id: 'soda', name: 'Beverage & Cereal Aisles', bounds: { x: 0, y: 1200, w: 1200, h: 700 }, bgColor: '#ffffff', tileColor1: '#ffffff', tileColor2: '#faf5ff', trimColor: '#9333ea' },
+        { id: 'electronics', name: 'Electronics & Tech Dept', bounds: { x: 1200, y: 1200, w: 1200, h: 700 }, bgColor: '#ffffff', tileColor1: '#ffffff', tileColor2: '#f1f5f9', trimColor: '#2563eb' },
+        { id: 'stockroom', name: 'Stockroom & Loading Bay', bounds: { x: 2400, y: 1200, w: 1200, h: 700 }, bgColor: '#f8fafc', tileColor1: '#f8fafc', tileColor2: '#e2e8f0', trimColor: '#64748b' },
+        { id: 'checkout', name: 'Front Checkout Registers', bounds: { x: 0, y: 1900, w: 3600, h: 500 }, bgColor: '#ffffff', tileColor1: '#ffffff', tileColor2: '#f1f5f9', trimColor: '#eab308' }
+    ];
+
+    function getCurrentZone(x, y) {
+        for (let zone of SUPERSTORE_ZONES) {
+            const b = zone.bounds;
+            if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) {
+                return zone;
+            }
+        }
+        return SUPERSTORE_ZONES[0];
+    }
+
+    class TrolleyTank {
+        constructor(id, x, y, color, isBot = false, name = 'Shopper', skinId = 'standard') {
+            this.id = id;
+            this.x = x;
+            this.y = y;
+            this.vx = 0;
+            this.vy = 0;
+            this.heading = Math.random() * Math.PI * 2;
+            this.turretAngle = this.heading;
+            this.radius = 24;
+            this.skinId = skinId;
+            this.color = color;
+            this.isBot = isBot;
+            this.name = name;
+
+            this.maxCartHealth = 100;
+            this.cartHealth = 100;
+
+            this.maxPusherHealth = 85;
+            this.pusherHealth = 85;
+            this.isPusherDead = false;
+
+            this.shield = 0;
+            this.isDead = false;
+
+            this.speed = 0;
+            this.accel = 0.36;
+            this.friction = 0.93;
+            this.steerSpeed = 0.06;
+
+            this.nitro = 100;
+            this.isBoosting = false;
+
+            this.weaponType = 'normal';
+            this.ammo = Infinity;
+            this.fireCooldown = 0;
+            this.score = 0;
+
+            this.casterAngle = 0;
+            this.squeakTimer = Math.random() * 50;
+
+            this.aiTarget = null;
+            this.aiRetargetTimer = 0;
+            this.aiShootTimer = 0;
+
+            this.pusherDist = 42; 
+            this.pusherRadius = 23;
+            this.pusherWalkCycle = 0;
+        }
+
+        getPusherPos() {
+            return {
+                x: this.x - Math.cos(this.heading) * this.pusherDist,
+                y: this.y - Math.sin(this.heading) * this.pusherDist
+            };
+        }
+
+        update(dt) {
+            if (this.isDead) return;
+
+            const speedSq = this.vx * this.vx + this.vy * this.vy;
+            if (speedSq > 3.0 && !this.isPusherDead) {
+                this.squeakTimer--;
+                if (this.squeakTimer <= 0) {
+                    sound.playSqueak();
+                    this.squeakTimer = 40 + Math.random() * 50;
+                }
+                this.pusherWalkCycle += Math.sqrt(speedSq) * 0.2;
+            }
+
+            if (this.id === 'p1' && !this.isDead) {
+                const wpn = WEAPONS[this.weaponType];
+                if (wpn.isRapidFire && (isMouseDown || isTouchFiring || keys['Space'])) {
+                    this.fire();
+                }
+            }
+
+            if (!this.isPusherDead) {
+                if (this.isBoosting && this.nitro > 0) {
+                    this.nitro = Math.max(0, this.nitro - 1.3);
+                    this.vx += Math.cos(this.heading) * 0.58;
+                    this.vy += Math.sin(this.heading) * 0.58;
+
+                    if (Math.random() < 0.6) {
+                        particles.push(new Particle(
+                            this.x - Math.cos(this.heading) * 44 + (Math.random() - 0.5) * 10,
+                            this.y - Math.sin(this.heading) * 44 + (Math.random() - 0.5) * 10,
+                            -Math.cos(this.heading) * 3.5 + (Math.random() - 0.5) * 2,
+                            -Math.sin(this.heading) * 3.5 + (Math.random() - 0.5) * 2,
+                            '#0284c7',
+                            Math.random() * 4 + 2,
+                            18
+                        ));
+                    }
+                } else {
+                    this.nitro = Math.min(100, this.nitro + 0.35);
+                }
+            }
+
+            const currentZone = getCurrentZone(this.x, this.y);
+            let curFriction = currentZone.slippery ? 0.982 : this.friction;
+
+            if (this.isPusherDead) {
+                curFriction = 0.88;
+            }
+
+            for (let belt of conveyorBelts) {
+                if (this.x >= belt.x && this.x <= belt.x + belt.w &&
+                    this.y >= belt.y && this.y <= belt.y + belt.h) {
+                    this.vx += belt.vx;
+                    this.vy += belt.vy;
+                }
+            }
+
+            const pPos = this.getPusherPos();
+            for (let puddle of firePuddles) {
+                const distCart = Math.hypot(this.x - puddle.x, this.y - puddle.y);
+                const distPusher = Math.hypot(pPos.x - puddle.x, pPos.y - puddle.y);
+
+                if (distCart < puddle.radius) {
+                    this.takeDamage(0.35, 'cart', puddle.ownerId);
+                }
+                if (distPusher < puddle.radius + 10 && !this.isPusherDead) {
+                    this.takeDamage(0.65, 'pusher', puddle.ownerId);
+                }
+            }
+
+            this.x += this.vx;
+            this.y += this.vy;
+            this.vx *= curFriction;
+            this.vy *= curFriction;
+
+            if (this.fireCooldown > 0) {
+                this.fireCooldown--;
+            }
+
+            const pad = this.radius + 24;
+            if (this.x < pad) { this.x = pad; this.vx = Math.abs(this.vx) * 0.5; }
+            if (this.x > WORLD_WIDTH - pad) { this.x = WORLD_WIDTH - pad; this.vx = -Math.abs(this.vx) * 0.5; }
+            if (this.y < pad) { this.y = pad; this.vy = Math.abs(this.vy) * 0.5; }
+            if (this.y > WORLD_HEIGHT - pad) { this.y = WORLD_HEIGHT - pad; this.vy = -Math.abs(this.vy) * 0.5; }
+
+            this.resolveObstacleCollisions();
+
+            if (speedSq > 16 && Math.random() < 0.28) {
+                tireTracks.push({
+                    x: this.x - Math.cos(this.heading) * 14,
+                    y: this.y - Math.sin(this.heading) * 14,
+                    angle: this.heading,
+                    alpha: 0.3,
+                    life: 240
+                });
+            }
+        }
+
+        resolveObstacleCollisions() {
+            for (let obs of obstacles) {
+                const closestX = Math.max(obs.x, Math.min(this.x, obs.x + obs.w));
+                const closestY = Math.max(obs.y, Math.min(this.y, obs.y + obs.h));
+                const dx = this.x - closestX;
+                const dy = this.y - closestY;
+                const distSq = dx * dx + dy * dy;
+
+                if (distSq < this.radius * this.radius) {
+                    const dist = Math.sqrt(distSq) || 0.001;
+                    const overlap = this.radius - dist;
+                    const nx = dx / dist;
+                    const ny = dy / dist;
+
+                    this.x += nx * overlap;
+                    this.y += ny * overlap;
+
+                    const dot = this.vx * nx + this.vy * ny;
+                    if (dot < 0) {
+                        this.vx = (this.vx - 1.5 * dot * nx) * 0.65;
+                        this.vy = (this.vy - 1.5 * dot * ny) * 0.65;
+                    }
+                }
+            }
+
+            for (let c of circularObstacles) {
+                const dx = this.x - c.x;
+                const dy = this.y - c.y;
+                const dist = Math.hypot(dx, dy) || 0.001;
+                const minDist = this.radius + c.radius;
+                if (dist < minDist) {
+                    const overlap = minDist - dist;
+                    const nx = dx / dist;
+                    const ny = dy / dist;
+                    this.x += nx * overlap;
+                    this.y += ny * overlap;
+
+                    const dot = this.vx * nx + this.vy * ny;
+                    if (dot < 0) {
+                        this.vx = (this.vx - 1.4 * dot * nx) * 0.65;
+                        this.vy = (this.vy - 1.4 * dot * ny) * 0.65;
+                    }
+                }
+            }
+        }
+
+        drive(forward = true) {
+            if (this.isPusherDead || this.isDead) return;
+
+            const dir = forward ? 1 : -0.55;
+            const force = this.accel * dir;
+            this.vx += Math.cos(this.heading) * force;
+            this.vy += Math.sin(this.heading) * force;
+            this.casterAngle += 0.3;
+        }
+
+        turn(direction) {
+            if (this.isPusherDead || this.isDead) return;
+            this.heading += this.steerSpeed * direction;
+        }
+
+        setAim(angle) {
+            this.turretAngle = angle;
+        }
+
+        fire() {
+            if (this.fireCooldown > 0 || this.isDead) return false;
+
+            const wpn = WEAPONS[this.weaponType];
+            this.fireCooldown = wpn.cooldown;
+
+            const recoilAngle = this.turretAngle + Math.PI;
+            this.vx += Math.cos(recoilAngle) * wpn.recoil;
+            this.vy += Math.sin(recoilAngle) * wpn.recoil;
+
+            const barrelLen = 34;
+            const muzzleX = this.x + Math.cos(this.turretAngle) * barrelLen;
+            const muzzleY = this.y + Math.sin(this.turretAngle) * barrelLen;
+
+            let finalAngle = this.turretAngle;
+            if (wpn.spread) {
+                finalAngle += (Math.random() - 0.5) * wpn.spread;
+            }
+
+            if (wpn.shotgunPellets) {
+                const spread = 0.35;
+                for (let k = 0; k < wpn.shotgunPellets; k++) {
+                    const pelletAngle = this.turretAngle - spread / 2 + (spread / (wpn.shotgunPellets - 1)) * k + (Math.random() - 0.5) * 0.08;
+                    bullets.push(new Bullet(this.id, muzzleX, muzzleY, pelletAngle, wpn, this.color, wpn.damage));
+                }
+            } else {
+                bullets.push(new Bullet(this.id, muzzleX, muzzleY, finalAngle, wpn, this.color, wpn.damage));
+            }
+
+            if (this.id === 'p1' && connections.length > 0) {
+                broadcastNetMessage({
+                    type: 'remote_fire',
+                    id: peer ? peer.id : 'p1',
+                    muzzleX: muzzleX,
+                    muzzleY: muzzleY,
+                    angle: finalAngle,
+                    weaponType: this.weaponType,
+                    color: this.color
+                });
+            }
+
+            const ejectAngle = this.turretAngle + Math.PI * 0.5;
+            shellCasings.push(new ShellCasing(
+                this.x, this.y,
+                Math.cos(ejectAngle) * 3, Math.sin(ejectAngle) * 3
+            ));
+
+            const pCount = wpn.isRapidFire ? 2 : 6;
+            for (let i = 0; i < pCount; i++) {
+                particles.push(new Particle(
+                    muzzleX, muzzleY,
+                    Math.cos(this.turretAngle + (Math.random() - 0.5) * 0.6) * (3 + Math.random() * 5),
+                    Math.sin(this.turretAngle + (Math.random() - 0.5) * 0.6) * (3 + Math.random() * 5),
+                    wpn.color, Math.random() * 2 + 1.5, 12
+                ));
+            }
+
+            sound.playShoot(this.weaponType);
+
+            if (this.weaponType !== 'normal') {
+                this.ammo--;
+                if (this.ammo <= 0) {
+                    this.weaponType = 'normal';
+                    this.ammo = Infinity;
+                    postKillfeed(`${this.name}'s special weapon ran dry!`, 'text-slate-500');
+                }
+            }
+
+            return true;
+        }
+
+        takeDamage(amount, targetPart = 'cart', attackerId = null) {
+            if (this.isDead) return;
+
+            if (this.shield > 0) {
+                if (this.shield >= amount) {
+                    this.shield -= amount;
+                    amount = 0;
+                } else {
+                    amount -= this.shield;
+                    this.shield = 0;
+                    postKillfeed(`${this.name}'s Kevlar Bag popped!`, 'text-purple-600');
+                }
+            }
+
+            if (amount <= 0) return;
+
+            if (targetPart === 'pusher' && !this.isPusherDead) {
+                this.pusherHealth -= amount;
+                for (let i = 0; i < 4; i++) {
+                    const pPos = this.getPusherPos();
+                    particles.push(new Particle(pPos.x, pPos.y, (Math.random() - 0.5) * 5, (Math.random() - 0.5) * 5, '#ef4444', 3.5, 22));
+                }
+
+                if (this.pusherHealth <= 0) {
+                    this.pusherHealth = 0;
+                    this.isPusherDead = true;
+                    sound.playPusherScream();
+
+                    const killer = players.find(p => p.id === attackerId);
+                    const killerName = killer ? killer.name : 'Aisle Crossfire';
+                    postKillfeed(`💀 ${killerName} DROPPED ${this.name}'s BIG PUSHER! (IMMOBILIZED!)`, 'text-rose-600 font-bold');
+
+                    if (killer && killer.id === 'p1') {
+                        stats.pushersKilled++;
+                    }
+
+                    if (this.id === 'p1') {
+                        const warn = document.getElementById('pusher-status-warning');
+                        if (warn) warn.classList.remove('hidden');
+                    }
+                }
+            } else {
+                this.cartHealth -= amount;
+                for (let i = 0; i < 4; i++) {
+                    particles.push(new Particle(this.x, this.y, (Math.random() - 0.5) * 5, (Math.random() - 0.5) * 5, '#64748b', 3, 18));
+                }
+
+                if (this.cartHealth <= 0) {
+                    this.cartHealth = 0;
+                    this.die(attackerId);
+                }
+            }
+        }
+
+        die(attackerId) {
+            this.isDead = true;
+            sound.playExplosion(true);
+            sound.playRegisterChime();
+
+            for (let i = 0; i < 40; i++) {
+                const colors = ['#ef4444', '#f59e0b', '#64748b', '#cbd5e1', '#ffffff', '#eab308'];
+                particles.push(new Particle(
+                    this.x, this.y,
+                    (Math.random() - 0.5) * 14, (Math.random() - 0.5) * 14,
+                    colors[Math.floor(Math.random() * colors.length)],
+                    Math.random() * 6 + 3, 48
+                ));
+            }
+
+            const killer = players.find(p => p.id === attackerId);
+            const killerName = killer ? killer.name : 'Supermarket Hazard';
+            postKillfeed(`💥 ${killerName} obliterated ${this.name}'s Cart!`, 'text-rose-600 font-black');
+
+            if (killer && killer.id !== this.id) {
+                killer.score += 45.00;
+                if (killer.id === 'p1') {
+                    stats.kills++;
+                }
+            }
+
+            checkRoundStatus();
+        }
+
+        equip(powerup) {
+            sound.playRegisterChime();
+            if (this.id === 'p1') stats.powerupsCollected++;
+
+            switch (powerup.type) {
+                case 'smg':
+                    this.weaponType = 'smg';
+                    this.ammo = WEAPONS.smg.ammo;
+                    postKillfeed(`🔫 ${this.name} equipped AISLE SWEEPER SMG! (HOLD TO SPRAY)`, 'text-amber-600 font-bold');
+                    break;
+                case 'watermelon':
+                    this.weaponType = 'watermelon';
+                    this.ammo = WEAPONS.watermelon.ammo;
+                    postKillfeed(`🍉 ${this.name} claimed WATERMELON MORTARS!`, 'text-emerald-600 font-bold');
+                    break;
+                case 'chicken':
+                    this.weaponType = 'chicken';
+                    this.ammo = WEAPONS.chicken.ammo;
+                    postKillfeed(`🍗 ${this.name} loaded ROTISSERIE CHICKEN NAPALM!`, 'text-orange-600 font-bold');
+                    break;
+                case 'seltzer':
+                    this.weaponType = 'seltzer';
+                    this.ammo = WEAPONS.seltzer.ammo;
+                    postKillfeed(`🍾 ${this.name} loaded SELTZER GATLING!`, 'text-cyan-600 font-bold');
+                    break;
+                case 'tomato':
+                    this.weaponType = 'tomato';
+                    this.ammo = WEAPONS.tomato.ammo;
+                    postKillfeed(`🥫 ${this.name} armed CANNED TOMATO CANNONADE!`, 'text-rose-600 font-bold');
+                    break;
+                case 'jalapeno':
+                    this.weaponType = 'jalapeno';
+                    this.ammo = WEAPONS.jalapeno.ammo;
+                    postKillfeed(`🌶️ ${this.name} armed JALAPEÑO FLAME BELCHER!`, 'text-red-600 font-bold');
+                    break;
+                case 'baguette':
+                    this.weaponType = 'baguette';
+                    this.ammo = WEAPONS.baguette.ammo;
+                    postKillfeed(`🥖 ${this.name} seized BAGUETTE AP SNIPERS!`, 'text-amber-700 font-bold');
+                    break;
+                case 'cluster':
+                    this.weaponType = 'cluster';
+                    this.ammo = WEAPONS.cluster.ammo;
+                    postKillfeed(`🥣 ${this.name} loaded CEREAL CLUSTER BOMBS!`, 'text-orange-600 font-bold');
+                    break;
+                case 'shield':
+                    this.shield = 75;
+                    postKillfeed(`🛍️ ${this.name} equipped KEVLAR SHOPPING BAG!`, 'text-purple-600 font-bold');
+                    break;
+                case 'health':
+                    this.cartHealth = Math.min(this.maxCartHealth, this.cartHealth + 40);
+                    this.pusherHealth = Math.min(this.maxPusherHealth, this.pusherHealth + 50);
+                    if (this.isPusherDead && this.pusherHealth > 0) {
+                        this.isPusherDead = false;
+                        postKillfeed(`🥬 ${this.name}'s BIG PUSHER REVIVED BY ORGANIC GREENS!`, 'text-green-700 font-black');
+                        if (this.id === 'p1') {
+                            const warn = document.getElementById('pusher-status-warning');
+                            if (warn) warn.classList.add('hidden');
+                        }
+                    } else {
+                        postKillfeed(`🥬 ${this.name} repaired +40 HP from Produce!`, 'text-green-600 font-bold');
+                    }
+                    break;
+                case 'turkey':
+                    proximityMines.push(new ProximityMine(this.id, this.x - Math.cos(this.heading) * 30, this.y - Math.sin(this.heading) * 30));
+                    postKillfeed(`🦃 ${this.name} laid a FROZEN TURKEY MINE!`, 'text-sky-600 font-bold');
+                    break;
+            }
+        }
+    }
+
+    class Bullet {
+        constructor(ownerId, x, y, angle, config, trailColor, customDmg = null) {
+            this.ownerId = ownerId;
+            this.x = x;
+            this.y = y;
+            this.angle = angle;
+            this.config = config;
+            this.vx = Math.cos(angle) * config.speed;
+            this.vy = Math.sin(angle) * config.speed;
+            this.radius = config.radius;
+            this.damage = customDmg !== null ? customDmg : config.damage;
+            this.splashRadius = config.splashRadius;
+            this.trailColor = trailColor;
+            this.life = config.isRapidFire ? 120 : (config.isBallisticMortar ? 220 : 200);
+            this.isAlive = true;
+            this.penetration = config.penetration || 1;
+            this.ricochets = config.ricochets || 0;
+            this.isBallisticMortar = config.isBallisticMortar || false;
+            this.shrapnelCount = config.shrapnelCount || 0;
+            this.leavesFirePuddle = config.leavesFirePuddle || false;
+
+            this.maxLife = this.life;
+            this.arcHeight = 0;
+        }
+
+        update() {
+            this.x += this.vx;
+            this.y += this.vy;
+            this.life--;
+
+            if (this.isBallisticMortar) {
+                const progress = 1 - (this.life / this.maxLife);
+                this.arcHeight = Math.sin(progress * Math.PI) * 32;
+
+                if (Math.random() < 0.35) {
+                    particles.push(new Particle(this.x, this.y - this.arcHeight, (Math.random() - 0.5) * 1.5, (Math.random() - 0.5) * 1.5, '#16a34a', 2.5, 14));
+                }
+
+                if (this.life <= 145) {
+                    this.explode(null);
+                    return;
+                }
+            }
+
+            if (this.life <= 0) {
+                this.explode(null);
+                return;
+            }
+
+            if (this.x < this.radius || this.x > WORLD_WIDTH - this.radius ||
+                this.y < this.radius || this.y > WORLD_HEIGHT - this.radius) {
+                if (this.ricochets > 0) {
+                    this.ricochets--;
+                    if (this.x < this.radius || this.x > WORLD_WIDTH - this.radius) this.vx *= -1;
+                    if (this.y < this.radius || this.y > WORLD_HEIGHT - this.radius) this.vy *= -1;
+                    this.angle = Math.atan2(this.vy, this.vx);
+                    sound.playHit();
+                } else {
+                    this.explode(null);
+                    return;
+                }
+            }
+
+            if (!this.isBallisticMortar) {
+                for (let obs of obstacles) {
+                    if (this.x >= obs.x && this.x <= obs.x + obs.w &&
+                        this.y >= obs.y && this.y <= obs.y + obs.h) {
+                        if (this.ricochets > 0) {
+                            this.ricochets--;
+                            this.vx *= -1;
+                            this.vy *= -1;
+                            this.angle = Math.atan2(this.vy, this.vx);
+                            sound.playHit();
+                        } else {
+                            this.explode(null);
+                            return;
+                        }
+                        break;
+                    }
+                }
+            }
+
+            for (let target of players) {
+                if (target.id === this.ownerId || target.isDead) continue;
+
+                if (!target.isPusherDead) {
+                    const pPos = target.getPusherPos();
+                    const distToPusher = Math.hypot(this.x - pPos.x, this.y - pPos.y);
+                    if (distToPusher < target.pusherRadius + this.radius) {
+                        target.takeDamage(this.damage * 1.25, 'pusher', this.ownerId);
+                        if (this.ownerId === 'p1') stats.damageDealt += this.damage * 1.25;
+                        this.explode(target);
+                        return;
+                    }
+                }
+
+                const distToCart = Math.hypot(this.x - target.x, this.y - target.y);
+                if (distToCart < target.radius + this.radius) {
+                    target.takeDamage(this.damage, 'cart', this.ownerId);
+                    if (this.ownerId === 'p1') stats.damageDealt += this.damage;
+
+                    if (this.config.knockback) {
+                        target.vx += Math.cos(this.angle) * this.config.knockback;
+                        target.vy += Math.sin(this.angle) * this.config.knockback;
+                    }
+
+                    this.penetration--;
+                    if (this.penetration <= 0) {
+                        this.explode(target);
+                        return;
+                    }
+                }
+            }
+        }
+
+        explode(directTarget) {
+            this.isAlive = false;
+
+            if (this.splashRadius > 20) {
+                sound.playExplosion(this.splashRadius > 80);
+                for (let p of players) {
+                    if (p.isDead || p === directTarget) continue;
+
+                    const distCart = Math.hypot(p.x - this.x, p.y - this.y);
+                    if (distCart < this.splashRadius) {
+                        const falloff = 1 - (distCart / this.splashRadius);
+                        const aoe = Math.round(this.damage * falloff * 0.7);
+                        p.takeDamage(aoe, 'cart', this.ownerId);
+                        if (this.ownerId === 'p1') stats.damageDealt += aoe;
+                    }
+
+                    if (!p.isPusherDead) {
+                        const pPos = p.getPusherPos();
+                        const distPusher = Math.hypot(pPos.x - this.x, pPos.y - this.y);
+                        if (distPusher < this.splashRadius) {
+                            const falloff = 1 - (distPusher / this.splashRadius);
+                            const aoe = Math.round(this.damage * falloff * 0.8);
+                            p.takeDamage(aoe, 'pusher', this.ownerId);
+                            if (this.ownerId === 'p1') stats.damageDealt += aoe;
+                        }
+                    }
+                }
+            }
+
+            if (this.shrapnelCount > 0) {
+                for (let k = 0; k < this.shrapnelCount; k++) {
+                    const ang = (Math.PI * 2 / this.shrapnelCount) * k + Math.random() * 0.3;
+                    const rindConfig = {
+                        name: 'Watermelon Rind Shrapnel',
+                        color: '#16a34a',
+                        speed: 9.5,
+                        radius: 4,
+                        damage: 12,
+                        splashRadius: 20,
+                        ricochets: 1
+                    };
+                    bullets.push(new Bullet(this.ownerId, this.x, this.y, ang, rindConfig, '#f43f5e', 12));
+                }
+
+                for (let i = 0; i < 16; i++) {
+                    particles.push(new Particle(
+                        this.x, this.y,
+                        (Math.random() - 0.5) * 7, (Math.random() - 0.5) * 7,
+                        Math.random() < 0.6 ? '#f43f5e' : '#15803d',
+                        Math.random() * 3.5 + 1.5, 24
+                    ));
+                }
+            }
+
+            if (this.leavesFirePuddle) {
+                firePuddles.push({
+                    x: this.x,
+                    y: this.y,
+                    radius: 75,
+                    life: 480,
+                    ownerId: this.ownerId
+                });
+            }
+
+            const sparkCount = this.config.isRapidFire ? 3 : 8;
+            for (let i = 0; i < sparkCount; i++) {
+                particles.push(new Particle(
+                    this.x, this.y,
+                    (Math.random() - 0.5) * 5, (Math.random() - 0.5) * 5,
+                    this.config.color, Math.random() * 2 + 1.5, 14
+                ));
+            }
+        }
+
+        draw(ctx) {
+            ctx.save();
+            const drawY = this.y - (this.arcHeight || 0);
+            ctx.translate(this.x, drawY);
+            ctx.rotate(this.angle);
+
+            if (this.config.name.includes('SMG')) {
+                ctx.fillStyle = '#fde047';
+                ctx.beginPath();
+                ctx.roundRect(-8, -1.8, 16, 3.6, 1.8);
+                ctx.fill();
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(-2, -1, 6, 2);
+            } else if (this.config.name.includes('Watermelon')) {
+                ctx.fillStyle = '#16a34a';
+                ctx.beginPath();
+                ctx.ellipse(0, 0, 11, 8, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = '#052e16';
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+                ctx.fillStyle = '#14532d';
+                ctx.fillRect(-6, -4, 12, 2);
+                ctx.fillRect(-5, 2, 10, 2);
+            } else if (this.config.name.includes('Chicken')) {
+                ctx.fillStyle = '#ea580c';
+                ctx.beginPath();
+                ctx.roundRect(-10, -6, 18, 12, 5);
+                ctx.fill();
+                ctx.fillStyle = '#fffbeb';
+                ctx.fillRect(8, -2, 5, 4);
+            } else if (this.config.name.includes('Seltzer')) {
+                ctx.fillStyle = '#06b6d4';
+                ctx.beginPath();
+                ctx.roundRect(-8, -3.5, 16, 7, 3);
+                ctx.fill();
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(6, -2, 4, 4);
+            } else if (this.config.name.includes('Tomato')) {
+                ctx.fillStyle = '#dc2626';
+                ctx.beginPath();
+                ctx.roundRect(-7, -5, 14, 10, 2);
+                ctx.fill();
+                ctx.fillStyle = '#e2e8f0';
+                ctx.fillRect(-7, -5, 14, 2);
+                ctx.fillRect(-7, 3, 14, 2);
+            } else if (this.config.name.includes('Jalapeño')) {
+                ctx.fillStyle = '#ef4444';
+                ctx.beginPath();
+                ctx.ellipse(0, 0, 9, 4.5, 0.2, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#15803d';
+                ctx.fillRect(-8, -1.5, 3, 3);
+            } else if (this.config.name.includes('Baguette')) {
+                ctx.fillStyle = '#d97706';
+                ctx.beginPath();
+                ctx.roundRect(-12, -4, 24, 8, 4);
+                ctx.fill();
+            } else {
+                ctx.fillStyle = '#f59e0b';
+                ctx.beginPath();
+                ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            ctx.restore();
+        }
+    }
+
+    class ProximityMine {
+        constructor(ownerId, x, y) {
+            this.ownerId = ownerId;
+            this.x = x;
+            this.y = y;
+            this.triggerRadius = 55;
+            this.life = 1800;
+            this.isArming = 40;
+        }
+
+        update() {
+            if (this.isArming > 0) {
+                this.isArming--;
+                return;
+            }
+            this.life--;
+
+            for (let p of players) {
+                if (p.isDead) continue;
+                if (Math.hypot(p.x - this.x, p.y - this.y) < this.triggerRadius) {
+                    this.detonate();
+                    return;
+                }
+            }
+        }
+
+        detonate() {
+            sound.playExplosion(true);
+            for (let p of players) {
+                if (p.isDead) continue;
+                const d = Math.hypot(p.x - this.x, p.y - this.y);
+                if (d < 110) {
+                    const dmg = Math.round(55 * (1 - d / 110));
+                    p.takeDamage(dmg, 'cart', this.ownerId);
+                    p.takeDamage(dmg * 0.8, 'pusher', this.ownerId);
+                    if (this.ownerId === 'p1') stats.damageDealt += dmg;
+                }
+            }
+            this.life = 0;
+        }
+
+        draw(ctx) {
+            ctx.save();
+            ctx.translate(this.x, this.y);
+            ctx.fillStyle = 'rgba(56, 189, 248, 0.2)';
+            ctx.beginPath();
+            ctx.arc(0, 0, this.triggerRadius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.font = '16px serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('🦃', 0, 0);
+            ctx.restore();
+        }
+    }
+
+    class Particle {
+        constructor(x, y, vx, vy, color, size, maxLife) {
+            this.x = x;
+            this.y = y;
+            this.vx = vx;
+            this.vy = vy;
+            this.color = color;
+            this.size = size;
+            this.maxLife = maxLife;
+            this.life = maxLife;
+        }
+
+        update() {
+            this.x += this.vx;
+            this.y += this.vy;
+            this.vx *= 0.94;
+            this.vy *= 0.94;
+            this.life--;
+        }
+
+        draw(ctx) {
+            const alpha = Math.max(0, this.life / this.maxLife);
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            ctx.fillStyle = this.color;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.size * (this.life / this.maxLife), 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+    }
+
+    class ShellCasing {
+        constructor(x, y, vx, vy) {
+            this.x = x;
+            this.y = y;
+            this.vx = vx;
+            this.vy = vy;
+            this.angle = Math.random() * Math.PI * 2;
+            this.life = 250;
+        }
+
+        update() {
+            if (this.life > 210) {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.vx *= 0.9;
+                this.vy *= 0.9;
+            }
+            this.life--;
+        }
+
+        draw(ctx) {
+            if (this.life <= 0) return;
+            ctx.save();
+            ctx.translate(this.x, this.y);
+            ctx.rotate(this.angle);
+            ctx.globalAlpha = Math.min(1, this.life / 50);
+            ctx.fillStyle = '#ca8a04';
+            ctx.fillRect(-3, -1.2, 6, 2.4);
+            ctx.restore();
+        }
+    }
+
+    function generateStockedItems(width, height, category) {
+        const items = [];
+        const isHorizontal = width >= height;
+
+        const colorPalettes = {
+            produce: ['#16a34a', '#ef4444', '#eab308', '#f97316', '#84cc16'],
+            canned: ['#dc2626', '#2563eb', '#ca8a04', '#16a34a', '#9333ea'],
+            cereal: ['#ea580c', '#eab308', '#ec4899', '#3b82f6', '#10b981'],
+            bottles: ['#0284c7', '#06b6d4', '#10b981', '#f43f5e', '#a855f7'],
+            detergent: ['#0284c7', '#f97316', '#16a34a', '#e11d48', '#8b5cf6'],
+            bakery: ['#d97706', '#b45309', '#fef08a', '#fde047', '#78350f'],
+            electronics: ['#1e293b', '#3b82f6', '#64748b', '#0f172a', '#38bdf8'],
+            freezer: ['#bae6fd', '#38bdf8', '#0284c7', '#e0f2fe', '#0369a1']
+        };
+
+        const palette = colorPalettes[category] || colorPalettes.canned;
+
+        if (isHorizontal) {
+            const shelfDepth = Math.max(16, height - 12);
+            const itemSpacing = 16;
+            const count = Math.floor((width - 24) / itemSpacing);
+
+            for (let i = 0; i < count; i++) {
+                const ix = 12 + i * itemSpacing;
+                const iy = 6;
+                const c = palette[i % palette.length];
+                const itemType = (i % 3 === 0) ? 'can' : (i % 3 === 1 ? 'box' : 'bottle');
+                items.push({ x: ix, y: iy, w: 12, h: shelfDepth, color: c, type: itemType });
+            }
+        } else {
+            const shelfDepth = Math.max(16, width - 12);
+            const itemSpacing = 16;
+            const count = Math.floor((height - 24) / itemSpacing);
+
+            for (let i = 0; i < count; i++) {
+                const ix = 6;
+                const iy = 12 + i * itemSpacing;
+                const c = palette[i % palette.length];
+                const itemType = (i % 3 === 0) ? 'box' : (i % 3 === 1 ? 'can' : 'bottle');
+                items.push({ x: ix, y: iy, w: shelfDepth, h: 12, color: c, type: itemType });
+            }
+        }
+
+        return items;
+    }
+
+    function buildSupermarketArena() {
+        obstacles = [];
+        circularObstacles = [];
+        breakables = [];
+        firePuddles = [];
+        powerups = [];
+        conveyorBelts = [];
+        proximityMines = [];
+        tireTracks = [];
+        shellCasings = [];
+
+        // 1. PRODUCE (Top Left)
+        circularObstacles.push({ x: 300, y: 320, radius: 65, color: '#15803d', label: '🍎 APPLES', itemColor: '#ef4444' });
+        circularObstacles.push({ x: 620, y: 320, radius: 65, color: '#15803d', label: '🍊 CITRUS', itemColor: '#f97316' });
+        circularObstacles.push({ x: 940, y: 320, radius: 65, color: '#15803d', label: '🥑 AVOCADOS', itemColor: '#166534' });
+        circularObstacles.push({ x: 460, y: 680, radius: 75, color: '#15803d', label: '🍉 MELONS', itemColor: '#10b981' });
+        circularObstacles.push({ x: 800, y: 680, radius: 75, color: '#15803d', label: '🍍 PINEAPPLES', itemColor: '#eab308' });
+
+        obstacles.push({
+            x: 140, y: 980, w: 920, h: 65,
+            label: 'SALAD & GREENS WALL',
+            zone: 'produce',
+            category: 'produce',
+            items: generateStockedItems(920, 65, 'produce')
+        });
+
+        // 2. FREEZERS (Top Middle)
+        obstacles.push({
+            x: 1260, y: 140, w: 1080, h: 70,
+            label: 'ICE CREAM FREEZER WALL',
+            zone: 'freezer',
+            category: 'freezer',
+            isGlass: true,
+            items: generateStockedItems(1080, 70, 'freezer')
+        });
+
+        for (let c = 0; c < 3; c++) {
+            obstacles.push({
+                x: 1380 + c * 330, y: 300, w: 70, h: 720,
+                label: `FREEZER AISLE ${c + 1}`,
+                zone: 'freezer',
+                category: 'freezer',
+                isGlass: true,
+                items: generateStockedItems(70, 720, 'freezer')
+            });
+        }
+
+        // 3. BAKERY & DELI (Top Right)
+        obstacles.push({
+            x: 2550, y: 160, w: 900, h: 65,
+            label: 'ARTISAN BREAD RACKS',
+            zone: 'bakery',
+            category: 'bakery',
+            items: generateStockedItems(900, 65, 'bakery')
+        });
+        obstacles.push({
+            x: 3380, y: 225, w: 70, h: 480,
+            label: 'HOT DELI OVEN',
+            zone: 'bakery',
+            category: 'bakery',
+            items: generateStockedItems(70, 480, 'bakery')
+        });
+        obstacles.push({
+            x: 2650, y: 450, w: 260, h: 90,
+            label: 'FRESH BAGUETTES',
+            zone: 'bakery',
+            category: 'bakery',
+            items: generateStockedItems(260, 90, 'bakery')
+        });
+        obstacles.push({
+            x: 3020, y: 450, w: 260, h: 90,
+            label: 'CAKE SHOWCASE',
+            zone: 'bakery',
+            category: 'bakery',
+            items: generateStockedItems(260, 90, 'bakery')
+        });
+
+        // 4. BEVERAGES & CEREALS (Mid Left)
+        for (let c = 0; c < 3; c++) {
+            const ax = 200 + c * 340;
+            obstacles.push({
+                x: ax, y: 1320, w: 65, h: 440,
+                label: `BEVERAGE RUN #${c + 1}`,
+                zone: 'soda',
+                category: c === 0 ? 'bottles' : (c === 1 ? 'cereal' : 'detergent'),
+                items: generateStockedItems(65, 440, c === 0 ? 'bottles' : (c === 1 ? 'cereal' : 'detergent'))
+            });
+
+            obstacles.push({
+                x: ax - 45, y: 1255, w: 155, h: 55,
+                label: `ENDCAP #${c + 1}A`,
+                zone: 'soda',
+                category: 'cereal',
+                items: generateStockedItems(155, 55, 'cereal')
+            });
+            obstacles.push({
+                x: ax - 45, y: 1770, w: 155, h: 55,
+                label: `ENDCAP #${c + 1}B`,
+                zone: 'soda',
+                category: 'bottles',
+                items: generateStockedItems(155, 55, 'bottles')
+            });
+        }
+
+        // 5. ELECTRONICS (Mid Center)
+        obstacles.push({
+            x: 1350, y: 1260, w: 900, h: 60,
+            label: 'OLED TV WALL DISPLAY',
+            zone: 'electronics',
+            category: 'electronics',
+            items: generateStockedItems(900, 60, 'electronics')
+        });
+
+        for (let r = 0; r < 2; r++) {
+            for (let c = 0; c < 2; c++) {
+                obstacles.push({
+                    x: 1420 + c * 440, y: 1410 + r * 220, w: 240, h: 120,
+                    label: `TECH POD #${r * 2 + c + 1}`,
+                    zone: 'electronics',
+                    category: 'electronics',
+                    items: generateStockedItems(240, 120, 'electronics')
+                });
+            }
+        }
+
+        // 6. STOCKROOM (Mid Right)
+        obstacles.push({
+            x: 2540, y: 1300, w: 220, h: 140,
+            label: 'WOODEN PALLETS',
+            zone: 'stockroom',
+            category: 'detergent',
+            color: '#78716c',
+            items: generateStockedItems(220, 140, 'detergent')
+        });
+        obstacles.push({
+            x: 2840, y: 1380, w: 160, h: 260,
+            label: 'CARDBOARD BALER',
+            zone: 'stockroom',
+            category: 'canned',
+            color: '#a8a29e',
+            items: generateStockedItems(160, 260, 'canned')
+        });
+        obstacles.push({
+            x: 3100, y: 1280, w: 340, h: 100,
+            label: 'STEEL RACKS',
+            zone: 'stockroom',
+            category: 'canned',
+            color: '#57534e',
+            items: generateStockedItems(340, 100, 'canned')
+        });
+
+        // 7. CHECKOUT LANES (Bottom)
+        for (let i = 0; i < 7; i++) {
+            const laneX = 220 + i * 470;
+            const laneY = 2050;
+
+            obstacles.push({
+                x: laneX, y: laneY, w: 180, h: 55,
+                label: `LANE #${i + 1}`,
+                zone: 'checkout',
+                category: 'cereal',
+                color: '#334155',
+                items: generateStockedItems(180, 55, 'cereal')
+            });
+
+            conveyorBelts.push({
+                x: laneX + 195, y: laneY - 25, w: 65, h: 105,
+                vx: 0, vy: -1.25,
+                label: 'BELT'
+            });
+        }
+
+        for (let i = 0; i < 3; i++) {
+            spawnPowerup();
+        }
+    }
+
+    function spawnPowerup() {
+        if (powerups.length >= MAX_ACTIVE_POWERUPS) return;
+
+        const proto = POWERUP_CATALOG[Math.floor(Math.random() * POWERUP_CATALOG.length)];
+
+        let attempts = 0;
+        let px = 0, py = 0;
+        let valid = false;
+
+        while (attempts < 30 && !valid) {
+            attempts++;
+            px = 180 + Math.random() * (WORLD_WIDTH - 360);
+            py = 180 + Math.random() * (WORLD_HEIGHT - 360);
+
+            let collides = false;
+            for (let obs of obstacles) {
+                if (px >= obs.x - 35 && px <= obs.x + obs.w + 35 &&
+                    py >= obs.y - 35 && py <= obs.y + obs.h + 35) {
+                    collides = true;
+                    break;
+                }
+            }
+            if (collides) continue;
+
+            let tooClose = false;
+            for (let p of powerups) {
+                if (Math.hypot(p.x - px, p.y - py) < 450) {
+                    tooClose = true;
+                    break;
+                }
+            }
+            if (!tooClose) valid = true;
+        }
+
+        if (!valid) return;
+
+        powerups.push({
+            x: px,
+            y: py,
+            radius: 22,
+            type: proto.type,
+            label: proto.label,
+            icon: proto.icon,
+            color: proto.color,
+            bobble: Math.random() * Math.PI * 2
+        });
+
+        const z = getCurrentZone(px, py);
+        showStoreWideBanner(`📦 ${proto.label.toUpperCase()} DROPPED IN ${z.name.toUpperCase()}!`);
+        postKillfeed(`📦 ${proto.label} arrived in ${z.name}!`, 'text-amber-700 font-bold');
+    }
+
+    function showStoreWideBanner(text) {
+        const banner = document.getElementById('powerup-alert-banner');
+        const bannerText = document.getElementById('alert-banner-text');
+        if (!banner || !bannerText) return;
+
+        bannerText.innerText = text;
+        banner.classList.remove('-translate-y-12', 'opacity-0');
+        banner.classList.add('translate-y-0', 'opacity-100');
+
+        setTimeout(() => {
+            banner.classList.remove('translate-y-0', 'opacity-100');
+            banner.classList.add('-translate-y-12', 'opacity-0');
+        }, 3600);
+    }
+
+    function drawFloor(ctx) {
+        for (let zone of SUPERSTORE_ZONES) {
+            const b = zone.bounds;
+            if (b.x + b.w < camera.x || b.x > camera.x + camera.width ||
+                b.y + b.h < camera.y || b.y > camera.y + camera.height) {
+                continue;
+            }
+
+            ctx.fillStyle = zone.bgColor;
+            ctx.fillRect(b.x, b.y, b.w, b.h);
+
+            const tileSize = 80;
+            const startC = Math.floor(Math.max(b.x, camera.x) / tileSize);
+            const endC = Math.ceil(Math.min(b.x + b.w, camera.x + camera.width) / tileSize);
+            const startR = Math.floor(Math.max(b.y, camera.y) / tileSize);
+            const endR = Math.ceil(Math.min(b.y + b.h, camera.y + camera.height) / tileSize);
+
+            for (let c = startC; c < endC; c++) {
+                for (let r = startR; r < endR; r++) {
+                    ctx.fillStyle = (c + r) % 2 === 0 ? zone.tileColor1 : zone.tileColor2;
+                    ctx.fillRect(c * tileSize, r * tileSize, tileSize, tileSize);
+
+                    ctx.strokeStyle = '#e2e8f0';
+                    ctx.lineWidth = 1;
+                    ctx.strokeRect(c * tileSize, r * tileSize, tileSize, tileSize);
+
+                    if ((c + r) % 3 === 0) {
+                        ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+                        ctx.fillRect(c * tileSize + 10, r * tileSize + 10, 24, 6);
+                    }
+                }
+            }
+
+            ctx.strokeStyle = zone.trimColor;
+            ctx.lineWidth = 3;
+            ctx.strokeRect(b.x + 2, b.y + 2, b.w - 4, b.h - 4);
+
+            ctx.save();
+            ctx.font = '900 28px Bungee, sans-serif';
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.04)';
+            ctx.textAlign = 'center';
+            ctx.fillText(zone.name.toUpperCase(), b.x + b.w / 2, b.y + b.h / 2);
+            ctx.restore();
+        }
+
+        const t = performance.now() * 0.04;
+        for (let belt of conveyorBelts) {
+            ctx.save();
+            ctx.fillStyle = '#1e293b';
+            ctx.roundRect(belt.x, belt.y, belt.w, belt.h, 4);
+            ctx.fill();
+            ctx.strokeStyle = '#64748b';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            ctx.strokeStyle = '#cbd5e1';
+            ctx.lineWidth = 2;
+            const step = 14;
+            const offset = (t % step);
+            for (let y = belt.y + offset; y < belt.y + belt.h; y += step) {
+                ctx.beginPath();
+                ctx.moveTo(belt.x + 4, y);
+                ctx.lineTo(belt.x + belt.w - 4, y);
+                ctx.stroke();
+            }
+
+            ctx.font = 'bold 8px monospace';
+            ctx.fillStyle = '#38bdf8';
+            ctx.textAlign = 'center';
+            ctx.fillText('BELT ▲', belt.x + belt.w / 2, belt.y + belt.h / 2);
+            ctx.restore();
+        }
+
+        ctx.strokeStyle = '#eab308';
+        ctx.lineWidth = 8;
+        ctx.strokeRect(4, 4, WORLD_WIDTH - 8, WORLD_HEIGHT - 8);
+    }
+
+    function drawObstacles(ctx) {
+        for (let obs of obstacles) {
+            if (obs.x + obs.w < camera.x || obs.x > camera.x + camera.width ||
+                obs.y + obs.h < camera.y || obs.y > camera.y + camera.height) {
+                continue;
+            }
+
+            ctx.save();
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.12)';
+            ctx.beginPath();
+            ctx.roundRect(obs.x + 6, obs.y + 8, obs.w, obs.h, 6);
+            ctx.fill();
+
+            ctx.fillStyle = obs.color || (obs.isGlass ? '#e0f2fe' : '#f8fafc');
+            ctx.beginPath();
+            ctx.roundRect(obs.x, obs.y, obs.w, obs.h, 6);
+            ctx.fill();
+            ctx.strokeStyle = obs.isGlass ? '#38bdf8' : '#cbd5e1';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            if (obs.items) {
+                for (let item of obs.items) {
+                    const ix = obs.x + item.x;
+                    const iy = obs.y + item.y;
+                    ctx.save();
+                    ctx.fillStyle = item.color;
+                    if (item.type === 'can') {
+                        ctx.beginPath();
+                        ctx.roundRect(ix, iy, item.w, item.h, 2);
+                        ctx.fill();
+                    } else if (item.type === 'box') {
+                        ctx.beginPath();
+                        ctx.roundRect(ix, iy, item.w, item.h, 1.5);
+                        ctx.fill();
+                    } else {
+                        ctx.beginPath();
+                        ctx.roundRect(ix, iy + 2, item.w, item.h - 2, 2);
+                        ctx.fill();
+                    }
+                    ctx.restore();
+                }
+            }
+
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(obs.x + 2, obs.y + obs.h - 5, obs.w - 4, 3);
+            for (let px = obs.x + 18; px < obs.x + obs.w - 18; px += 36) {
+                ctx.fillStyle = '#fde047';
+                ctx.fillRect(px, obs.y + obs.h - 4, 10, 2);
+            }
+
+            ctx.fillStyle = '#0f172a';
+            ctx.beginPath();
+            ctx.roundRect(obs.x + obs.w / 2 - 60, obs.y - 11, 120, 16, 4);
+            ctx.fill();
+            ctx.fillStyle = '#fde047';
+            ctx.font = 'bold 8.5px Inter, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(obs.label, obs.x + obs.w / 2, obs.y + 1);
+
+            ctx.restore();
+        }
+
+        for (let c of circularObstacles) {
+            ctx.save();
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.12)';
+            ctx.beginPath();
+            ctx.arc(c.x + 4, c.y + 5, c.radius, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = c.color;
+            ctx.beginPath();
+            ctx.arc(c.x, c.y, c.radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+
+            const fruitCount = 14;
+            for (let f = 0; f < fruitCount; f++) {
+                const angle = (f / fruitCount) * Math.PI * 2;
+                const r = c.radius * 0.58;
+                const fx = c.x + Math.cos(angle) * r;
+                const fy = c.y + Math.sin(angle) * r;
+
+                ctx.fillStyle = c.itemColor || '#ef4444';
+                ctx.beginPath();
+                ctx.arc(fx, fy, 8.5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            ctx.fillStyle = '#0f172a';
+            ctx.beginPath();
+            ctx.roundRect(c.x - 42, c.y + c.radius - 12, 84, 15, 4);
+            ctx.fill();
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 8.5px Inter, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(c.label, c.x, c.y + c.radius);
+            ctx.restore();
+        }
+    }
+
+    function drawPowerups(ctx) {
+        const time = performance.now() * 0.003;
+        for (let p of powerups) {
+            ctx.save();
+            const hoverY = p.y + Math.sin(time + p.bobble) * 5;
+
+            ctx.fillStyle = p.color + '44';
+            ctx.beginPath();
+            ctx.arc(p.x, hoverY, p.radius + 12 + Math.sin(time * 3) * 3, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(p.x, hoverY, p.radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = p.color;
+            ctx.lineWidth = 3;
+            ctx.stroke();
+
+            ctx.font = '16px serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(p.icon, p.x, hoverY);
+
+            ctx.font = 'bold 9px Inter, sans-serif';
+            ctx.fillStyle = '#0f172a';
+            ctx.shadowColor = '#ffffff';
+            ctx.shadowBlur = 3;
+            ctx.fillText(`★ ${p.label.toUpperCase()}`, p.x, hoverY + 24);
+            ctx.restore();
+        }
+
+        for (let f of firePuddles) {
+            ctx.save();
+            ctx.fillStyle = 'rgba(234, 88, 12, 0.4)';
+            ctx.beginPath();
+            ctx.arc(f.x, f.y, f.radius, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = 'rgba(251, 146, 60, 0.8)';
+            for (let k = 0; k < 4; k++) {
+                const ox = (Math.random() - 0.5) * f.radius;
+                const oy = (Math.random() - 0.5) * f.radius;
+                ctx.beginPath();
+                ctx.arc(f.x + ox, f.y + oy, 3, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.restore();
+        }
+    }
+
+    function drawCart(ctx, cart) {
+        if (cart.isDead) {
+            ctx.save();
+            ctx.translate(cart.x, cart.y);
+            ctx.fillStyle = '#94a3b8';
+            ctx.beginPath();
+            ctx.arc(0, 0, cart.radius * 0.8, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+            return;
+        }
+
+        ctx.save();
+        ctx.translate(cart.x, cart.y);
+
+        ctx.save();
+        ctx.translate(3, 5);
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.16)';
+        ctx.beginPath();
+        ctx.ellipse(0, 0, cart.radius + 4, cart.radius, cart.heading, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+
+        ctx.save();
+        ctx.rotate(cart.heading);
+
+        const pusherX = -cart.pusherDist;
+        const pusherY = 0;
+
+        if (!cart.isPusherDead) {
+            const legStride = Math.sin(cart.pusherWalkCycle) * 8;
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(pusherX - 6, pusherY - 12 + legStride, 8, 11);
+            ctx.fillRect(pusherX - 6, pusherY + 4 - legStride, 8, 11);
+
+            ctx.fillStyle = cart.isBot ? '#dc2626' : (cart.id === 'p1' ? '#2563eb' : '#059669');
+            ctx.beginPath();
+            ctx.roundRect(pusherX - 12, pusherY - 13, 16, 26, 5);
+            ctx.fill();
+            ctx.strokeStyle = '#020617';
+            ctx.lineWidth = 1.8;
+            ctx.stroke();
+
+            ctx.fillStyle = cart.isBot ? '#b91c1c' : '#1d4ed8';
+            ctx.beginPath();
+            ctx.arc(pusherX - 4, pusherY - 11, 5, 0, Math.PI * 2);
+            ctx.arc(pusherX - 4, pusherY + 11, 5, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.strokeStyle = '#fbcfe8';
+            ctx.lineWidth = 4.5;
+            ctx.beginPath();
+            ctx.moveTo(pusherX - 2, pusherY - 10);
+            ctx.lineTo(-24, -12);
+            ctx.moveTo(pusherX - 2, pusherY + 10);
+            ctx.lineTo(-24, 12);
+            ctx.stroke();
+
+            ctx.fillStyle = '#f472b6';
+            ctx.beginPath();
+            ctx.arc(-24, -12, 3.5, 0, Math.PI * 2);
+            ctx.arc(-24, 12, 3.5, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = '#fbcfe8';
+            ctx.beginPath();
+            ctx.arc(pusherX - 2, pusherY, 9, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#0f172a';
+            ctx.lineWidth = 1.2;
+            ctx.stroke();
+
+            ctx.fillStyle = '#1e293b';
+            ctx.beginPath();
+            ctx.arc(pusherX - 1, pusherY, 9.5, -Math.PI * 0.5, Math.PI * 0.5);
+            ctx.fill();
+
+            ctx.strokeStyle = 'rgba(239, 68, 68, 0.25)';
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([3, 3]);
+            ctx.beginPath();
+            ctx.arc(pusherX, pusherY, cart.pusherRadius, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        } else {
+            ctx.save();
+            ctx.fillStyle = 'rgba(239, 68, 68, 0.35)';
+            ctx.beginPath();
+            ctx.arc(pusherX, pusherY, 18, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = '#475569';
+            ctx.beginPath();
+            ctx.ellipse(pusherX, pusherY, 16, 11, 0.4, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.font = 'black 9px Inter, sans-serif';
+            ctx.fillStyle = '#ef4444';
+            ctx.textAlign = 'center';
+            ctx.fillText('DOWN', pusherX, pusherY + 3);
+            ctx.restore();
+        }
+
+        const wheelPositions = [
+            { x: -16, y: -16 },
+            { x: -16, y: 16 },
+            { x: 16, y: -16 },
+            { x: 16, y: 16 }
+        ];
+
+        wheelPositions.forEach((w) => {
+            ctx.save();
+            ctx.translate(w.x, w.y);
+            if (w.x > 0) ctx.rotate(Math.sin(cart.casterAngle) * 0.35);
+            ctx.fillStyle = '#334155';
+            ctx.fillRect(-5, -2, 10, 4);
+            ctx.fillStyle = '#94a3b8';
+            ctx.fillRect(-2, -1, 4, 2);
+            ctx.restore();
+        });
+
+        ctx.fillStyle = '#475569';
+        ctx.beginPath();
+        ctx.roundRect(-20, -18, 40, 36, 5);
+        ctx.fill();
+        ctx.strokeStyle = '#1e293b';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        ctx.fillStyle = cart.color;
+        ctx.beginPath();
+        ctx.roundRect(-26, -14, 6, 28, 3);
+        ctx.fill();
+
+        ctx.strokeStyle = cart.skinId === 'royal_gold' ? '#fde047' : (cart.skinId === 'cyber' ? '#67e8f9' : '#ffffff');
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.roundRect(-18, -15, 34, 30, 4);
+        ctx.stroke();
+
+        ctx.beginPath();
+        for (let gx = -12; gx <= 12; gx += 6) {
+            ctx.moveTo(gx, -14);
+            ctx.lineTo(gx, 14);
+        }
+        for (let gy = -10; gy <= 10; gy += 5) {
+            ctx.moveTo(-17, gy);
+            ctx.lineTo(15, gy);
+        }
+        ctx.stroke();
+
+        if (cart.shield > 0) {
+            ctx.strokeStyle = '#a855f7';
+            ctx.lineWidth = 3.5;
+            ctx.beginPath();
+            ctx.arc(0, 0, cart.radius + 6, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+
+        ctx.restore();
+
+        ctx.save();
+        ctx.rotate(cart.turretAngle);
+
+        const barrelLen = 34;
+        ctx.fillStyle = '#334155';
+        ctx.fillRect(0, -3.5, barrelLen, 7);
+
+        ctx.fillStyle = cart.color;
+        ctx.fillRect(12, -4, 5, 8);
+
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(barrelLen - 4, -5.5, 6, 11);
+
+        ctx.fillStyle = cart.color;
+        ctx.beginPath();
+        ctx.arc(0, 0, 11, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#0f172a';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        ctx.restore();
+
+        ctx.save();
+        ctx.font = 'bold 9px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#0f172a';
+        ctx.shadowColor = 'rgba(255, 255, 255, 0.9)';
+        ctx.shadowBlur = 4;
+        ctx.fillText(cart.name, 0, -42);
+
+        const barW = 42;
+        const barH = 4.0;
+
+        ctx.fillStyle = '#e2e8f0';
+        ctx.fillRect(-barW / 2, -34, barW, barH);
+        const cartRatio = Math.max(0, cart.cartHealth / cart.maxCartHealth);
+        ctx.fillStyle = cartRatio > 0.5 ? '#16a34a' : (cartRatio > 0.25 ? '#ca8a04' : '#dc2626');
+        ctx.fillRect(-barW / 2, -34, barW * cartRatio, barH);
+
+        ctx.fillStyle = '#e2e8f0';
+        ctx.fillRect(-barW / 2, -28, barW, barH);
+        const pusherRatio = Math.max(0, cart.pusherHealth / cart.maxPusherHealth);
+        ctx.fillStyle = cart.isPusherDead ? '#94a3b8' : '#2563eb';
+        ctx.fillRect(-barW / 2, -28, barW * pusherRatio, barH);
+
+        if (cart.isPusherDead) {
+            ctx.font = 'black 8px monospace';
+            ctx.fillStyle = '#dc2626';
+            ctx.fillText('⚡ IMMOBILIZED', 0, -16);
+        }
+
+        ctx.restore();
+
+        ctx.restore();
+    }
+
+    function drawDragAimIndicator(ctx) {
+        const p1 = players.find(p => p.id === 'p1');
+        if (!p1 || p1.isDead || !dragAim.active) return;
+
+        ctx.save();
+        const wpn = WEAPONS[p1.weaponType];
+        const barrelLen = 34;
+        const muzzleX = p1.x + Math.cos(p1.turretAngle) * barrelLen;
+        const muzzleY = p1.y + Math.sin(p1.turretAngle) * barrelLen;
+
+        const distance = Math.max(80, Math.min(520, dragAim.aimDist * 2.3));
+        const targetX = muzzleX + Math.cos(p1.turretAngle) * distance;
+        const targetY = muzzleY + Math.sin(p1.turretAngle) * distance;
+
+        if (dragAimMode === 'slingshot') {
+            ctx.beginPath();
+            ctx.setLineDash([4, 4]);
+            ctx.strokeStyle = 'rgba(217, 119, 6, 0.6)';
+            ctx.lineWidth = 1.5;
+            ctx.moveTo(p1.x, p1.y);
+            ctx.lineTo(dragAim.worldCurrentX, dragAim.worldCurrentY);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
+        ctx.beginPath();
+        ctx.strokeStyle = wpn.color;
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 6]);
+        ctx.moveTo(muzzleX, muzzleY);
+        ctx.lineTo(targetX, targetY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        const dotCount = Math.floor(distance / 28);
+        for (let i = 1; i <= dotCount; i++) {
+            const ratio = i / dotCount;
+            const dotX = muzzleX + (targetX - muzzleX) * ratio;
+            const dotY = muzzleY + (targetY - muzzleY) * ratio;
+            ctx.fillStyle = wpn.color;
+            ctx.beginPath();
+            ctx.arc(dotX, dotY, 2.5 + Math.sin(performance.now() * 0.01 + i) * 1, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        const blast = wpn.splashRadius || 24;
+        ctx.beginPath();
+        ctx.strokeStyle = wpn.color;
+        ctx.lineWidth = 1.5;
+        ctx.fillStyle = wpn.color + '22';
+        ctx.arc(targetX, targetY, blast, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.save();
+        ctx.translate(targetX, targetY);
+        ctx.rotate(performance.now() * 0.003);
+        ctx.strokeStyle = '#0f172a';
+        ctx.lineWidth = 2;
+        const b = 10;
+        ctx.beginPath();
+        ctx.moveTo(-b, -b + 3); ctx.lineTo(-b, -b); ctx.lineTo(-b + 3, -b);
+        ctx.moveTo(b - 3, -b); ctx.lineTo(b, -b); ctx.lineTo(b, -b + 3);
+        ctx.moveTo(-b, b - 3); ctx.lineTo(-b, b); ctx.lineTo(-b + 3, b);
+        ctx.moveTo(b - 3, b); ctx.lineTo(b, b); ctx.lineTo(b, b - 3);
+        ctx.stroke();
+
+        ctx.fillStyle = '#ef4444';
+        ctx.beginPath();
+        ctx.arc(0, 0, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+
+        ctx.font = 'bold 9px monospace';
+        ctx.fillStyle = '#0f172a';
+        ctx.textAlign = 'center';
+        ctx.shadowColor = '#ffffff';
+        ctx.shadowBlur = 4;
+        ctx.fillText(`${Math.round(distance)}m [${wpn.name.toUpperCase()}]`, targetX, targetY - blast - 6);
+
+        ctx.restore();
+    }
+
+    function renderMinimap() {
+        if (!miniCanvas) return;
+        const mw = miniCanvas.width;
+        const mh = miniCanvas.height;
+
+        miniCtx.fillStyle = '#f8fafc';
+        miniCtx.fillRect(0, 0, mw, mh);
+
+        const sx = mw / WORLD_WIDTH;
+        const sy = mh / WORLD_HEIGHT;
+
+        for (let zone of SUPERSTORE_ZONES) {
+            miniCtx.fillStyle = zone.tileColor2;
+            miniCtx.fillRect(zone.bounds.x * sx, zone.bounds.y * sy, zone.bounds.w * sx, zone.bounds.h * sy);
+            miniCtx.strokeStyle = '#e2e8f0';
+            miniCtx.strokeRect(zone.bounds.x * sx, zone.bounds.y * sy, zone.bounds.w * sx, zone.bounds.h * sy);
+        }
+
+        miniCtx.fillStyle = '#cbd5e1';
+        for (let obs of obstacles) {
+            miniCtx.fillRect(obs.x * sx, obs.y * sy, obs.w * sx, obs.h * sy);
+        }
+
+        for (let p of powerups) {
+            miniCtx.fillStyle = p.color;
+            miniCtx.beginPath();
+            miniCtx.arc(p.x * sx, p.y * sy, 3, 0, Math.PI * 2);
+            miniCtx.fill();
+        }
+
+        for (let p of players) {
+            if (p.isDead) continue;
+            miniCtx.fillStyle = p.id === 'p1' ? '#10b981' : p.color;
+            miniCtx.beginPath();
+            miniCtx.arc(p.x * sx, p.y * sy, p.id === 'p1' ? 3.5 : 2.5, 0, Math.PI * 2);
+            miniCtx.fill();
+        }
+
+        miniCtx.strokeStyle = '#d97706';
+        miniCtx.lineWidth = 1;
+        miniCtx.strokeRect(camera.x * sx, camera.y * sy, camera.width * sx, camera.height * sy);
+    }
+
+    function postKillfeed(text, styleClass = 'text-slate-700') {
+        const box = document.getElementById('killfeed-box');
+        if (!box) return;
+        const msg = document.createElement('div');
+        msg.className = `bg-white/95 border border-slate-300 px-2 py-0.5 rounded shadow-xs ${styleClass} transition-opacity duration-300`;
+        msg.innerHTML = text;
+        box.appendChild(msg);
+
+        setTimeout(() => {
+            msg.style.opacity = '0';
+            setTimeout(() => msg.remove(), 300);
+        }, 3400);
+    }
+
+    function updateShopperBotAI(bot, dt) {
+        if (bot.isDead) return;
+
+        bot.aiRetargetTimer--;
+        if (bot.aiRetargetTimer <= 0 || !bot.aiTarget || bot.aiTarget.isDead) {
+            if (powerups.length > 0 && Math.random() < 0.5) {
+                bot.aiTarget = powerups[0];
+            } else {
+                let closest = null;
+                let minDist = Infinity;
+                for (let p of players) {
+                    if (p.id !== bot.id && !p.isDead) {
+                        const d = Math.hypot(p.x - bot.x, p.y - bot.y);
+                        if (d < minDist) {
+                            minDist = d;
+                            closest = p;
+                        }
+                    }
+                }
+                bot.aiTarget = closest;
+            }
+            bot.aiRetargetTimer = 45 + Math.random() * 30;
+        }
+
+        if (!bot.aiTarget) return;
+
+        const target = bot.aiTarget;
+        const dx = target.x - bot.x;
+        const dy = target.y - bot.y;
+        const dist = Math.hypot(dx, dy);
+        let targetAngle = Math.atan2(dy, dx);
+
+        const probeX = bot.x + Math.cos(bot.heading) * 75;
+        const probeY = bot.y + Math.sin(bot.heading) * 75;
+        let blocked = false;
+
+        for (let obs of obstacles) {
+            if (probeX >= obs.x && probeX <= obs.x + obs.w &&
+                probeY >= obs.y && probeY <= obs.y + obs.h) {
+                blocked = true;
+                break;
+            }
+        }
+        if (blocked) targetAngle += Math.PI / 2;
+
+        let diff = targetAngle - bot.heading;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+
+        if (!bot.isPusherDead) {
+            if (diff > 0.12) bot.turn(1);
+            else if (diff < -0.12) bot.turn(-1);
+            if (Math.abs(diff) < 1.1) bot.drive(true);
+            bot.isBoosting = dist > 550 && bot.nitro > 40 && Math.random() < 0.1;
+        }
+
+        if (target instanceof TrolleyTank) {
+            let aimX = target.x;
+            let aimY = target.y;
+
+            if (!target.isPusherDead && botDifficulty !== 'easy' && Math.random() < 0.6) {
+                const pPos = target.getPusherPos();
+                aimX = pPos.x;
+                aimY = pPos.y;
+            }
+
+            const lead = botDifficulty === 'hard' ? 7 : 3;
+            aimX += target.vx * lead;
+            aimY += target.vy * lead;
+
+            bot.setAim(Math.atan2(aimY - bot.y, aimX - bot.x));
+
+            bot.aiShootTimer--;
+            if (bot.aiShootTimer <= 0 && dist < 600) {
+                const aimDiff = Math.abs(bot.turretAngle - Math.atan2(target.y - bot.y, target.x - bot.x));
+                if (aimDiff < 0.45) {
+                    bot.fire();
+                    const wpn = WEAPONS[bot.weaponType];
+                    bot.aiShootTimer = wpn.isRapidFire ? 5 : (botDifficulty === 'hard' ? 24 : 40);
+                }
+            }
+        }
+    }
+
+    function updateDragAimCalculations(clientX, clientY) {
+        const rect = canvas.getBoundingClientRect();
+        const cx = clientX - rect.left;
+        const cy = clientY - rect.top;
+
+        dragAim.currentX = cx;
+        dragAim.currentY = cy;
+        dragAim.worldCurrentX = cx + camera.x;
+        dragAim.worldCurrentY = cy + camera.y;
+
+        const p1 = players.find(p => p.id === 'p1');
+        if (!p1 || p1.isDead) return;
+
+        let angle = 0;
+        let dist = 0;
+
+        if (dragAimMode === 'slingshot') {
+            const dx = p1.x - dragAim.worldCurrentX;
+            const dy = p1.y - dragAim.worldCurrentY;
+            angle = Math.atan2(dy, dx);
+            dist = Math.hypot(dx, dy);
+        } else {
+            const dx = dragAim.worldCurrentX - p1.x;
+            const dy = dragAim.worldCurrentY - p1.y;
+            angle = Math.atan2(dy, dx);
+            dist = Math.hypot(dx, dy);
+        }
+
+        dragAim.aimAngle = angle;
+        dragAim.aimDist = dist;
+        p1.setAim(angle);
+    }
+
+    function setupEventListeners() {
+        window.addEventListener('keydown', (e) => {
+            keys[e.code] = true;
+            if (e.code === 'Space') {
+                e.preventDefault();
+                const p1 = players.find(p => p.id === 'p1');
+                if (p1 && !p1.isDead) p1.fire();
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            keys[e.code] = false;
+        });
+
+        canvas.addEventListener('mousedown', (e) => {
+            if (e.button !== 0) return;
+            sound.init();
+            isMouseDown = true;
+
+            dragAim.active = true;
+            const rect = canvas.getBoundingClientRect();
+            dragAim.startX = e.clientX - rect.left;
+            dragAim.startY = e.clientY - rect.top;
+            updateDragAimCalculations(e.clientX, e.clientY);
+
+            const p1 = players.find(p => p.id === 'p1');
+            if (p1 && !p1.isDead && WEAPONS[p1.weaponType].isRapidFire) {
+                p1.fire();
+            }
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            mouse.x = e.clientX - rect.left;
+            mouse.y = e.clientY - rect.top;
+            mouse.worldX = mouse.x + camera.x;
+            mouse.worldY = mouse.y + camera.y;
+
+            if (dragAim.active) {
+                updateDragAimCalculations(e.clientX, e.clientY);
+            } else {
+                const p1 = players.find(p => p.id === 'p1');
+                if (p1 && !p1.isDead) {
+                    p1.setAim(Math.atan2(mouse.worldY - p1.y, mouse.worldX - p1.x));
+                }
+            }
+        });
+
+        window.addEventListener('mouseup', (e) => {
+            if (e.button !== 0) return;
+            isMouseDown = false;
+            if (dragAim.active) {
+                const p1 = players.find(p => p.id === 'p1');
+                if (p1 && !p1.isDead) {
+                    p1.fire();
+                }
+                dragAim.active = false;
+            }
+        });
+
+        // Touch input for aim/shoot
+        canvas.addEventListener('touchstart', (e) => {
+            sound.init();
+            isMouseDown = true;
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                const t = e.changedTouches[i];
+                const rect = canvas.getBoundingClientRect();
+                const tx = t.clientX - rect.left;
+
+                if (tx < 180 && t.clientY > rect.height - 200) {
+                    continue;
+                }
+
+                if (!dragAim.active) {
+                    dragAim.active = true;
+                    dragAim.identifier = t.identifier;
+                    dragAim.startX = tx;
+                    dragAim.startY = t.clientY - rect.top;
+                    updateDragAimCalculations(t.clientX, t.clientY);
+
+                    const p1 = players.find(p => p.id === 'p1');
+                    if (p1 && !p1.isDead && WEAPONS[p1.weaponType].isRapidFire) {
+                        p1.fire();
+                    }
+                    break;
+                }
+            }
+        }, { passive: false });
+
+        canvas.addEventListener('touchmove', (e) => {
+            if (!dragAim.active) return;
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                const t = e.changedTouches[i];
+                if (t.identifier === dragAim.identifier) {
+                    e.preventDefault();
+                    updateDragAimCalculations(t.clientX, t.clientY);
+                    break;
+                }
+            }
+        }, { passive: false });
+
+        const onTouchEnd = (e) => {
+            if (!dragAim.active) return;
+            isMouseDown = false;
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                const t = e.changedTouches[i];
+                if (t.identifier === dragAim.identifier) {
+                    const p1 = players.find(p => p.id === 'p1');
+                    if (p1 && !p1.isDead) p1.fire();
+                    dragAim.active = false;
+                    dragAim.identifier = null;
+                    break;
+                }
+            }
+        };
+
+        canvas.addEventListener('touchend', onTouchEnd);
+        canvas.addEventListener('touchcancel', onTouchEnd);
+
+        // --- SCREEN JOYSTICK FOR MOVEMENT (Mouse & Touch) ---
+        const stickZone = document.getElementById('touch-stick-zone');
+        const stickKnob = document.getElementById('touch-stick-knob');
+        let stickActiveId = null;
+        let stickCenter = { x: 0, y: 0 };
+
+        function updateStick(clientX, clientY) {
+            const maxRadius = 45;
+            const dx = clientX - stickCenter.x;
+            const dy = clientY - stickCenter.y;
+            const dist = Math.hypot(dx, dy);
+            const angle = Math.atan2(dy, dx);
+            const clamped = Math.min(dist, maxRadius);
+
+            const sx = Math.cos(angle) * clamped;
+            const sy = Math.sin(angle) * clamped;
+
+            stickKnob.style.transform = `translate(${sx}px, ${sy}px)`;
+            touchMove.x = sx / maxRadius;
+            touchMove.y = sy / maxRadius;
+            touchMove.active = clamped > 5;
+        }
+
+        function endStick() {
+            stickActiveId = null;
+            touchMove.active = false;
+            touchMove.x = 0;
+            touchMove.y = 0;
+            stickKnob.style.transform = `translate(0px, 0px)`;
+        }
+
+        stickZone.addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            sound.init();
+            stickActiveId = e.pointerId;
+            stickZone.setPointerCapture(e.pointerId);
+
+            const rect = stickZone.getBoundingClientRect();
+            stickCenter = {
+                x: rect.left + rect.width / 2,
+                y: rect.top + rect.height / 2
+            };
+            updateStick(e.clientX, e.clientY);
+        });
+
+        stickZone.addEventListener('pointermove', (e) => {
+            if (e.pointerId !== stickActiveId) return;
+            e.preventDefault();
+            updateStick(e.clientX, e.clientY);
+        });
+
+        stickZone.addEventListener('pointerup', (e) => {
+            if (e.pointerId !== stickActiveId) return;
+            e.preventDefault();
+            endStick();
+        });
+
+        stickZone.addEventListener('pointercancel', (e) => {
+            if (e.pointerId !== stickActiveId) return;
+            e.preventDefault();
+            endStick();
+        });
+
+        const btnShoot = document.getElementById('btn-touch-shoot');
+        btnShoot.addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            sound.init();
+            isTouchFiring = true;
+            const p1 = players.find(p => p.id === 'p1');
+            if (p1 && !p1.isDead) p1.fire();
+        });
+        const stopTouchFire = (e) => {
+            e.preventDefault();
+            isTouchFiring = false;
+        };
+        btnShoot.addEventListener('pointerup', stopTouchFire);
+        btnShoot.addEventListener('pointercancel', stopTouchFire);
+        btnShoot.addEventListener('pointerleave', stopTouchFire);
+
+        const btnBoost = document.getElementById('btn-touch-boost');
+        btnBoost.addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            const p1 = players.find(p => p.id === 'p1');
+            if (p1) p1.isBoosting = true;
+        });
+        const stopBoost = (e) => {
+            e.preventDefault();
+            const p1 = players.find(p => p.id === 'p1');
+            if (p1) p1.isBoosting = false;
+        };
+        btnBoost.addEventListener('pointerup', stopBoost);
+        btnBoost.addEventListener('pointercancel', stopBoost);
+        btnBoost.addEventListener('pointerleave', stopBoost);
+    }
+
+    function resizeGameCanvas() {
+        const container = document.getElementById('canvas-container');
+        dpr = window.devicePixelRatio || 1;
+
+        const w = container.clientWidth;
+        const h = container.clientHeight;
+
+        canvas.width = w * dpr;
+        canvas.height = h * dpr;
+        canvas.style.width = `${w}px`;
+        canvas.style.height = `${h}px`;
+
+        ctx.resetTransform();
+        ctx.scale(dpr, dpr);
+
+        camera.width = w;
+        camera.height = h;
+
+        miniCanvas.width = 100;
+        miniCanvas.height = 68;
+    }
+
+    window.addEventListener('resize', resizeGameCanvas);
+
+    function startBattle() {
+        sound.init();
+        buildSupermarketArena();
+
+        players = [];
+        bullets = [];
+        particles = [];
+
+        stats.kills = 0;
+        stats.pushersKilled = 0;
+        stats.damageDealt = 0;
+        stats.powerupsCollected = 0;
+        powerupSpawnCooldown = 12;
+
+        const acc = accountMgr.activeAccount;
+        const skin = TROLLEY_SKINS.find(s => s.id === acc.selectedSkin) || TROLLEY_SKINS[0];
+
+        const p1 = new TrolleyTank('p1', 320, 320, skin.color, false, acc.name, skin.id);
+        players.push(p1);
+
+        const botColors = ['#f43f5e', '#ec4899', '#f97316', '#eab308', '#a855f7', '#06b6d4', '#3b82f6', '#84cc16'];
+        const spawnPoints = [
+            { x: 1800, y: 350 }, { x: 2900, y: 350 },
+            { x: 600, y: 1550 }, { x: 1800, y: 1550 },
+            { x: 2900, y: 1550 }, { x: 1200, y: 2150 },
+            { x: 2200, y: 2150 }, { x: 1500, y: 850 }
+        ];
+
+        const activeBotCount = isMultiplayerActive ? 0 : botCount;
+        for (let i = 0; i < activeBotCount; i++) {
+            const sp = spawnPoints[i % spawnPoints.length];
+            const bx = sp.x + (Math.random() - 0.5) * 200;
+            const by = sp.y + (Math.random() - 0.5) * 150;
+            const bot = new TrolleyTank(`bot_${i}`, bx, by, botColors[i % botColors.length], true, RANDOM_NAMES[i % RANDOM_NAMES.length]);
+            players.push(bot);
+        }
+
+        document.getElementById('touch-controls').classList.remove('hidden');
+        document.getElementById('pusher-status-warning').classList.add('hidden');
+
+        isRunning = true;
+        isPaused = false;
+        document.getElementById('menu-modal').classList.add('hidden');
+        document.getElementById('game-over-modal').classList.add('hidden');
+        document.getElementById('account-modal').classList.add('hidden');
+        document.getElementById('multiplayer-modal').classList.add('hidden');
+
+        postKillfeed('🛒 BATTLE COMMENCED! FLANK GIANT PUSHERS TO IMMOBILIZE OPPONENTS!', 'text-amber-700 font-bold');
+    }
+
+    function checkRoundStatus() {
+        if (!isRunning) return;
+
+        setTimeout(() => {
+            const alive = players.filter(p => !p.isDead);
+            const p1 = players.find(p => p.id === 'p1');
+
+            if (p1 && p1.isDead) {
+                concludeMatch(false, 'Your trolley cart was reduced to scrap metal!');
+            } else if (alive.length === 1 && alive[0].id === 'p1') {
+                concludeMatch(true, 'Megastore Dominated! All competitor trolleys liquidated!');
+            }
+        }, 1100);
+    }
+
+    function concludeMatch(victory, msg) {
+        isRunning = false;
+        const earnedCoupons = accountMgr.recordMatch(stats.kills, stats.pushersKilled, stats.damageDealt, stats.powerupsCollected, victory);
+
+        const modal = document.getElementById('game-over-modal');
+        const icon = document.getElementById('game-over-icon');
+        const title = document.getElementById('game-over-title');
+        const sub = document.getElementById('game-over-subtitle');
+
+        icon.innerText = victory ? '🏆' : '💀';
+        title.innerText = victory ? 'CHECKOUT VICTORY!' : 'OUT OF STOCK!';
+        sub.innerText = msg;
+
+        document.getElementById('stat-kills').innerText = stats.kills;
+        document.getElementById('stat-pushers').innerText = stats.pushersKilled;
+        document.getElementById('stat-dmg').innerText = Math.round(stats.damageDealt);
+        document.getElementById('stat-pu').innerText = stats.powerupsCollected;
+        document.getElementById('stat-earned-coupons').innerText = `+🎟️ ${earnedCoupons}`;
+
+        modal.classList.remove('hidden');
+    }
+
+    let lastTime = 0;
+    function gameLoop(timestamp) {
+        const dt = (timestamp - lastTime) / 1000 || 0.016;
+        lastTime = timestamp;
+
+        if (isRunning && !isPaused) {
+            updateSimulation(dt);
+        }
+
+        renderSimulation();
+        requestAnimationFrame(gameLoop);
+    }
+
+    function updateSimulation(dt) {
+        const p1 = players.find(p => p.id === 'p1');
+
+        if (p1 && !p1.isDead) {
+            if (keys['KeyW'] || keys['ArrowUp']) p1.drive(true);
+            if (keys['KeyS'] || keys['ArrowDown']) p1.drive(false);
+            if (keys['KeyA'] || keys['ArrowLeft']) p1.turn(-1);
+            if (keys['KeyD'] || keys['ArrowRight']) p1.turn(1);
+
+            p1.isBoosting = keys['ShiftLeft'] || keys['ShiftRight'] || false;
+
+            // On-screen joystick control input
+            if (touchMove.active) {
+                const targetHeading = Math.atan2(touchMove.y, touchMove.x);
+                let diff = targetHeading - p1.heading;
+                while (diff < -Math.PI) diff += Math.PI * 2;
+                while (diff > Math.PI) diff -= Math.PI * 2;
+
+                if (diff > 0.08) p1.turn(1);
+                else if (diff < -0.08) p1.turn(-1);
+                
+                const mag = Math.hypot(touchMove.x, touchMove.y);
+                if (mag > 0.15) {
+                    p1.drive(true);
+                }
+            }
+        }
+
+        // Periodic multiplayer broadcast (20 times per second)
+        const now = performance.now();
+        if (now - lastNetworkSync > 50) {
+            lastNetworkSync = now;
+            broadcastLocalState();
+        }
+
+        // Bots
+        for (let p of players) {
+            if (p.isBot) updateShopperBotAI(p, dt);
+            p.update(dt);
+        }
+
+        // Bullets
+        for (let i = bullets.length - 1; i >= 0; i--) {
+            const b = bullets[i];
+            b.update();
+            if (!b.isAlive) bullets.splice(i, 1);
+        }
+
+        // Fire puddles life
+        for (let i = firePuddles.length - 1; i >= 0; i--) {
+            const f = firePuddles[i];
+            f.life--;
+            if (f.life <= 0) firePuddles.splice(i, 1);
+        }
+
+        for (let i = proximityMines.length - 1; i >= 0; i--) {
+            const m = proximityMines[i];
+            m.update();
+            if (m.life <= 0) proximityMines.splice(i, 1);
+        }
+
+        for (let i = shellCasings.length - 1; i >= 0; i--) {
+            const sc = shellCasings[i];
+            sc.update();
+            if (sc.life <= 0) shellCasings.splice(i, 1);
+        }
+
+        for (let i = particles.length - 1; i >= 0; i--) {
+            const part = particles[i];
+            part.update();
+            if (part.life <= 0) particles.splice(i, 1);
+        }
+
+        // Power-up Pickups
+        for (let i = powerups.length - 1; i >= 0; i--) {
+            const pu = powerups[i];
+            for (let p of players) {
+                if (p.isDead) continue;
+                if (Math.hypot(p.x - pu.x, p.y - pu.y) < p.radius + pu.radius) {
+                    p.equip(pu);
+                    powerups.splice(i, 1);
+                    break;
+                }
+            }
+        }
+
+        powerupSpawnCooldown -= dt;
+        if (powerupSpawnCooldown <= 0) {
+            powerupSpawnCooldown = 10 + Math.random() * 4;
+            if (powerups.length < MAX_ACTIVE_POWERUPS) {
+                spawnPowerup();
+            }
+        }
+
+        // Camera Lerp
+        if (p1) {
+            const targetCamX = p1.x - camera.width / 2;
+            const targetCamY = p1.y - camera.height / 2;
+            camera.x += (targetCamX - camera.x) * 0.1;
+            camera.y += (targetCamY - camera.y) * 0.1;
+
+            camera.x = Math.max(0, Math.min(WORLD_WIDTH - camera.width, camera.x));
+            camera.y = Math.max(0, Math.min(WORLD_HEIGHT - camera.height, camera.y));
+        }
+
+        updateHUD();
+    }
+
+    function updateHUD() {
+        const p1 = players.find(p => p.id === 'p1');
+        if (!p1) return;
+
+        // Cart HP
+        const cartHpBar = document.getElementById('p1-cart-hp-fill');
+        const cartHpNum = document.getElementById('p1-cart-hp-num');
+        const cartRatio = Math.max(0, p1.cartHealth / p1.maxCartHealth);
+        cartHpBar.style.width = `${cartRatio * 100}%`;
+        cartHpNum.innerText = `${Math.ceil(p1.cartHealth)} HP ${p1.shield > 0 ? `(+${p1.shield} BAG)` : ''}`;
+
+        // Big Pusher HP
+        const pusherHpBar = document.getElementById('p1-pusher-hp-fill');
+        const pusherHpNum = document.getElementById('p1-pusher-hp-num');
+        const pusherRatio = Math.max(0, p1.pusherHealth / p1.maxPusherHealth);
+        pusherHpBar.style.width = `${pusherRatio * 100}%`;
+        pusherHpNum.innerText = p1.isPusherDead ? 'DOWN!' : `${Math.ceil(p1.pusherHealth)} HP`;
+
+        const scoreVal = document.getElementById('hud-cash');
+        const wpnName = document.getElementById('p1-wpn-name');
+        const ammoNum = document.getElementById('p1-ammo-num');
+        const nitroBar = document.getElementById('p1-nitro-fill');
+        const radarTag = document.getElementById('radar-zone-tag');
+
+        scoreVal.innerText = `$${p1.score.toFixed(2)}`;
+        nitroBar.style.width = `${p1.nitro}%`;
+
+        const w = WEAPONS[p1.weaponType];
+        wpnName.innerHTML = `<span style="color:${w.color}">${w.isRapidFire ? '🔫' : '💣'}</span> ${w.name}`;
+        ammoNum.innerText = p1.ammo === Infinity ? '∞' : p1.ammo;
+
+        const currentZ = getCurrentZone(p1.x, p1.y);
+        radarTag.innerText = currentZ.name.split(' ')[0];
+    }
+
+    function renderSimulation() {
+        ctx.clearRect(0, 0, camera.width, camera.height);
+
+        ctx.save();
+        ctx.translate(-camera.x, -camera.y);
+
+        drawFloor(ctx);
+
+        for (let track of tireTracks) {
+            ctx.save();
+            ctx.translate(track.x, track.y);
+            ctx.rotate(track.angle);
+            ctx.fillStyle = `rgba(15, 23, 42, ${track.alpha})`;
+            ctx.fillRect(-3, -2, 6, 4);
+            ctx.restore();
+            track.life--;
+            track.alpha *= 0.995;
+        }
+        tireTracks = tireTracks.filter(t => t.life > 0 && t.alpha > 0.02);
+
+        for (let sc of shellCasings) sc.draw(ctx);
+        for (let m of proximityMines) m.draw(ctx);
+
+        drawObstacles(ctx);
+        drawPowerups(ctx);
+
+        for (let p of players) drawCart(ctx, p);
+
+        drawDragAimIndicator(ctx);
+
+        for (let b of bullets) b.draw(ctx);
+        for (let part of particles) part.draw(ctx);
+
+        ctx.restore();
+
+        renderMinimap();
+    }
+
+    function toggleAimStyle(style) {
+        dragAimMode = style || (dragAimMode === 'direct' ? 'slingshot' : 'direct');
+        document.getElementById('cfg-aim-style').value = dragAimMode;
+        document.getElementById('aim-mode-text').innerText = dragAimMode === 'direct' ? 'Direct' : 'Slingshot';
+        postKillfeed(`🎯 Aim Mode: ${dragAimMode === 'direct' ? 'Direct Drag' : 'Slingshot Pull'}`, 'text-cyan-700 font-bold');
+    }
+
+    document.getElementById('btn-aim-mode').addEventListener('click', () => toggleAimStyle());
+    document.getElementById('cfg-aim-style').addEventListener('change', (e) => toggleAimStyle(e.target.value));
+
+    const botSlider = document.getElementById('cfg-bots-slider');
+    const botLabel = document.getElementById('cfg-bots-label');
+    botSlider.addEventListener('input', (e) => {
+        botCount = parseInt(e.target.value);
+        botLabel.innerText = `${botCount} Carts`;
+    });
+
+    document.getElementById('cfg-difficulty').addEventListener('change', (e) => {
+        botDifficulty = e.target.value;
+    });
+
+    document.getElementById('btn-audio').addEventListener('click', () => {
+        sound.init();
+        sound.enabled = !sound.enabled;
+        document.getElementById('btn-audio').innerText = sound.enabled ? '🔊' : '🔇';
+    });
+
+    document.getElementById('btn-menu').addEventListener('click', () => {
+        isPaused = !isPaused;
+        const menu = document.getElementById('menu-modal');
+        if (isPaused) menu.classList.remove('hidden');
+        else menu.classList.add('hidden');
+    });
+
+    // Multiplayer Modal Wireup
+    document.getElementById('btn-open-multiplayer').addEventListener('click', () => {
+        isPaused = true;
+        document.getElementById('multiplayer-modal').classList.remove('hidden');
+    });
+    document.getElementById('btn-close-multiplayer').addEventListener('click', () => {
+        document.getElementById('multiplayer-modal').classList.add('hidden');
+        if (isRunning) isPaused = false;
+    });
+    document.getElementById('btn-copy-code').addEventListener('click', () => {
+        const copyInput = document.getElementById('my-peer-id');
+        copyInput.select();
+        navigator.clipboard.writeText(copyInput.value);
+        postKillfeed('📋 Aisle Room Code copied to clipboard!', 'text-blue-600 font-bold');
+    });
+    document.getElementById('btn-connect-peer').addEventListener('click', () => {
+        const joinCode = document.getElementById('input-join-code').value;
+        if (joinCode) {
+            connectToFriend(joinCode);
+        }
+    });
+
+    const openAccountModal = () => {
+        isPaused = true;
+        accountMgr.updateUI();
+        document.getElementById('account-modal').classList.remove('hidden');
+    };
+
+    const closeAccountModal = () => {
+        document.getElementById('account-modal').classList.add('hidden');
+        if (!isRunning) document.getElementById('menu-modal').classList.remove('hidden');
+        else isPaused = false;
+    };
+
+    document.getElementById('btn-open-account').addEventListener('click', openAccountModal);
+    document.getElementById('btn-change-acc-menu').addEventListener('click', openAccountModal);
+    document.getElementById('btn-post-account').addEventListener('click', openAccountModal);
+    document.getElementById('btn-close-account').addEventListener('click', closeAccountModal);
+    document.getElementById('btn-save-close-account').addEventListener('click', closeAccountModal);
+
+    document.getElementById('btn-switch-account').addEventListener('click', () => {
+        const select = document.getElementById('acc-profile-select');
+        accountMgr.setActive(select.value);
+        sound.playRegisterChime();
+    });
+
+    document.getElementById('btn-create-account').addEventListener('click', () => {
+        const input = document.getElementById('new-account-name');
+        if (accountMgr.createAccount(input.value)) {
+            input.value = '';
+            sound.playRegisterChime();
+        }
+    });
+
+    document.getElementById('btn-start').addEventListener('click', startBattle);
+    document.getElementById('btn-restart').addEventListener('click', startBattle);
+
+    const paMessages = [
+        '"ATTENTION SHOPPERS: GIANT PUSHERS HAVE BROAD SHOULDERS AND ARE EASY TARGETS!"',
+        '"MANAGER SPECIAL: AISLE SWEEPER SUBMACHINE GUNS HAVE BEEN RESTOCKED!"',
+        '"FLANK ALERT: SNEAK BEHIND OPPONENT CARTS TO IMMOBILIZE THEIR WHEELS!"',
+        '"CHECKOUT WARNING: CONVEYOR BELTS ACTIVE IN REGISTER LANES!"',
+        '"RAPID FIRE: HOLD DOWN THE TRIGGER TO SPRAY CONTINUOUS SMG BULLETS!"'
+    ];
+    let paIdx = 0;
+    setInterval(() => {
+        paIdx = (paIdx + 1) % paMessages.length;
+        const ticker = document.getElementById('pa-ticker');
+        if (ticker) ticker.innerText = paMessages[paIdx];
+    }, 8500);
+
+    window.onload = function() {
+        accountMgr.updateUI();
+        resizeGameCanvas();
+        setupEventListeners();
+        buildSupermarketArena();
+        initMultiplayer();
+        requestAnimationFrame(gameLoop);
+    };
+    </script>
+</body>
+</html>
